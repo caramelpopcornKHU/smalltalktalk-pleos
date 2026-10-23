@@ -75,12 +75,11 @@ class MorningViewModel(app: Application) : AndroidViewModel(app) {
         if (cards.isEmpty()) return
         brief = viewModelScope.launch {
             try {
-                services.voice.speak("오늘의 아침 카드 ${cards.size}장을 들려드릴게요.")
+                // 짧게: 카테고리 이름과 던지는 말만 (2026-10-23 피드백, 소재 설명·안내 문구는 장황했다)
                 cards.forEachIndexed { i, c ->
                     _state.update { it.copy(briefing = i) }
-                    val label = MORNING_CATEGORY_LABELS[c.category] ?: ""
-                    services.voice.speak("$label. ${c.topic}")
-                    services.voice.speak("이렇게 말해 보세요. ${c.line(_state.value.tone)}")
+                    val label = MORNING_CATEGORY_LABELS[c.category]?.let { "$it. " } ?: ""
+                    services.voice.speak(label + c.line(_state.value.tone))
                 }
             } finally {
                 _state.update { it.copy(briefing = null) }
