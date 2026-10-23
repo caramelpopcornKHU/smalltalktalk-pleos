@@ -157,26 +157,50 @@ private fun HomeScreen(state: TalkState, parked: Boolean, vm: TalkViewModel) {
             }
             // 주행 중: 오늘의 상대 사진과 큰 시작 버튼만 (목록을 읽고 고르는 일은 정차 중에)
             !parked -> state.today?.let { TodayPartner(it, parked = false, vm, Modifier.weight(1f)) }
-            else -> LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 260.dp),
-                horizontalArrangement = Arrangement.spacedBy(20.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp),
-            ) {
-                state.today?.let { t ->
-                    item(key = "today", span = { GridItemSpan(maxLineSpan) }) {
-                        TodayPartner(t, parked = true, vm, Modifier.fillMaxWidth().height(440.dp))
+            else -> BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+                // 2026-10-23 시안(docs/prototypes/today-partner.html): 넓은 창은 왼쪽 큰 세로 카드(바로 시작하기·다른 사람)
+                // + 오른쪽 사진 카드 목록, 좁은 창은 A안(세로 카드 위, 목록 아래). 사진을 세로 그대로 써서 얼굴이 잘리지 않게.
+                // 처음에 넣은 흐린 후보 카드 둘은 써 보고 뺐다(같은 날 피드백)
+                if (maxWidth > WIDE_HOME) {
+                    Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                        state.today?.let { t ->
+                            TodayPartner(t, parked = true, vm, Modifier.fillMaxHeight().padding(bottom = 8.dp).aspectRatio(3f / 4f))
+                        }
+                        ScenarioGrid(state, vm, Modifier.weight(1f).fillMaxHeight(), today = null)
                     }
-                }
-                item(span = { GridItemSpan(maxLineSpan) }) { Section("누구와, 어떤 자리에서?") }
-                items(state.shared, key = { it.id }) { ScenarioCard(it, state.rallies[it.id], vm) }
-                if (state.mine.isNotEmpty()) {
-                    item(span = { GridItemSpan(maxLineSpan) }) { Section("내 이야기로 만든 연습") }
-                    items(state.mine, key = { it.id }) { ScenarioCard(it, state.rallies[it.id], vm) }
+                } else {
+                    ScenarioGrid(state, vm, Modifier.fillMaxSize(), today = state.today)
                 }
             }
         }
     }
 }
+
+/** 넓은 창(전체화면 등)과 좁은 창(상황판 옆 1칸)을 가르는 폭 */
+private val WIDE_HOME = 900.dp
+
+/** 상황 목록. 좁은 창에서는 맨 위에 오늘의 상대 세로 카드(A안)를 함께 넣는다 */
+@Composable
+private fun ScenarioGrid(state: TalkState, vm: TalkViewModel, modifier: Modifier, today: Scenario?) = LazyVerticalGrid(
+    columns = GridCells.Adaptive(minSize = 220.dp),
+    modifier = modifier,
+    horizontalArrangement = Arrangement.spacedBy(16.dp),
+    verticalArrangement = Arrangement.spacedBy(16.dp),
+) {
+    today?.let { t ->
+        item(key = "today", span = { GridItemSpan(maxLineSpan) }) {
+            TodayPartner(t, parked = true, vm, Modifier.fillMaxWidth().aspectRatio(3f / 3.2f))
+        }
+    }
+    item(span = { GridItemSpan(maxLineSpan) }) { Section("누구와, 어떤 자리에서?") }
+    items(state.shared, key = { it.id }) { ScenarioCard(it, state.rallies[it.id], vm) }
+    if (state.mine.isNotEmpty()) {
+        item(span = { GridItemSpan(maxLineSpan) }) { Section("내 이야기로 만든 연습") }
+        items(state.mine, key = { it.id }) { ScenarioCard(it, state.rallies[it.id], vm) }
+    }
+    item(span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(8.dp)) }
+}
+
 
 /**
  * 오늘의 상대 (폰 앱 2026-10-22): 큰 사진 + 상황·첫 마디 미리 보기 + 바로 시작하기 / 다른 사람.
