@@ -36,6 +36,9 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,14 +55,42 @@ import com.smalltoktok.pleos.data.Feedback
 import com.smalltoktok.pleos.data.Scenario
 import com.smalltoktok.pleos.ui.theme.Palette
 
-/** 앱 진입: 대화 단계에 따라 홈·대화·코칭 화면을 고른다 */
+/**
+ * 앱 진입. 탭 화면은 헤더 캡슐 + 하단 탭 바 사이에 두고,
+ * 대화·코칭은 상대에게 집중하도록 화면 전체를 쓴다(폰 앱과 같다).
+ * 탭 선택은 rememberSaveable이라 창 크기가 바뀌거나 앱이 다시 만들어져도 유지된다.
+ */
 @Composable
 fun App(vm: TalkViewModel) {
     val state by vm.state.collectAsStateWithLifecycle()
     val parked by vm.driving.parked.collectAsStateWithLifecycle()
+    var tab by rememberSaveable { mutableStateOf(Tab.Evening) }
+    var extra by rememberSaveable { mutableStateOf<Extra?>(null) }
     Box(Modifier.fillMaxSize().background(Palette.bg)) {
         when (state.phase) {
-            Phase.Idle -> HomeScreen(state, parked, vm)
+            Phase.Idle -> Column(Modifier.fillMaxSize()) {
+                CapsuleHeader(
+                    unread = false,
+                    onBell = { extra = Extra.Notifications },
+                    onGear = { extra = Extra.Settings },
+                )
+                Box(Modifier.weight(1f)) {
+                    when (extra) {
+                        Extra.Notifications -> ComingSoon("알림", "아침 카드와 새 상대 소식이 여기에 모여요.")
+                        Extra.Settings -> ComingSoon("설정", "알림 시각과 계정 설정을 준비하고 있어요.")
+                        null -> when (tab) {
+                            Tab.Evening -> HomeScreen(state, parked, vm)
+                            Tab.Reflect -> ComingSoon("아쉬운 대화", "아쉬웠던 순간을 말로 털어놓고 연습 상황으로 만들어요.")
+                            Tab.Morning -> ComingSoon("아침 카드", "출근길에 오늘 던질 한마디를 들려드려요.")
+                            Tab.Notes -> ComingSoon("관계 노트", "연습하며 쌓인 관계 포인트를 모아 봐요.")
+                        }
+                    }
+                }
+                FloatingTabBar(current = tab.takeIf { extra == null }) {
+                    tab = it
+                    extra = null
+                }
+            }
             Phase.Done -> CoachingScreen(state.feedback, parked, vm)
             Phase.Error -> ErrorScreen(state.error, vm)
             else -> TalkScreen(state, parked, vm)
@@ -75,8 +106,7 @@ fun App(vm: TalkViewModel) {
  */
 @Composable
 private fun HomeScreen(state: TalkState, parked: Boolean, vm: TalkViewModel) {
-    Column(Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-        Text("스몰톡톡", style = MaterialTheme.typography.headlineMedium)
+    Column(Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
         when {
             state.loadingScenarios -> Loading("상대를 불러오고 있어요")
             state.scenarios.isEmpty() -> {
