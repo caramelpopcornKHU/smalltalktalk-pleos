@@ -169,6 +169,17 @@ class TalkViewModel(app: Application) : AndroidViewModel(app) {
         return best
     }
 
+    /**
+     * 대화 습관 리포트의 "이 습관으로 연습하기": 가장 약한 관계 거리의 공유 상황 중 안 해본 것을 먼저.
+     * 거리를 모르면 오늘의 상대로 시작한다.
+     */
+    fun startForDistance(distance: String?) {
+        val st = _state.value
+        val pool = st.shared.filter { distance == null || it.distance == distance }
+        val pick = pool.filter { it.id !in st.rallies }.randomOrNull() ?: pool.randomOrNull() ?: st.today ?: st.shared.randomOrNull()
+        pick?.let { start(it) }
+    }
+
     /** 코칭의 추천 한마디 들어보기 (Pleos TTS) */
     fun say(text: String) {
         viewModelScope.launch { voice.speak(text) }

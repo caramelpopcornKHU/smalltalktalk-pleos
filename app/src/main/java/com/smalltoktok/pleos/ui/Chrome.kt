@@ -40,7 +40,8 @@ enum class Tab(val label: String, val icon: @Composable (Color) -> Unit) {
     Evening("저녁 연습", { EveningIcon(it) }),
     Reflect("아쉬운 대화", { ReflectIcon(it) }),
     Morning("아침 카드", { MorningIcon(it) }),
-    Notes("관계 노트", { NotesIcon(it) }),
+    // 관계 노트 자리를 나의 대화 습관으로 (2026-10-23). 저장한 한마디·관계 포인트는 나중에 이 탭 아래로
+    Habits("나의 대화 습관", { HabitIcon(it) }),
 }
 
 /** 탭 바 밖의 화면 (헤더 버튼으로 연다) */

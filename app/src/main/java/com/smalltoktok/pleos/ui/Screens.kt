@@ -76,6 +76,7 @@ fun App(vm: TalkViewModel) {
     val morningVm: MorningViewModel = viewModel()
     val profileVm: ProfileViewModel = viewModel()
     val profile by profileVm.state.collectAsStateWithLifecycle()
+    val habitVm: HabitViewModel = viewModel()
     // 전체화면일 때 위 차량 정보 줄·아래 공조 바(시스템 바)와 겹치지 않게 안전 영역 안에만 그린다.
     // 상황판 옆 창(일부 화면)일 때는 겹치는 영역이 없어 여백이 0이 된다
     Box(Modifier.fillMaxSize().background(Palette.bg).windowInsetsPadding(WindowInsets.safeDrawing)) {
@@ -98,7 +99,7 @@ fun App(vm: TalkViewModel) {
                             Tab.Evening -> HomeScreen(state, parked, vm)
                             Tab.Reflect -> ReflectScreen(reflectVm, parked) { vm.startNew(it) }
                             Tab.Morning -> MorningScreen(morningVm, parked)
-                            Tab.Notes -> ComingSoon("관계 노트", "연습하며 쌓인 관계 포인트를 모아 봐요.")
+                            Tab.Habits -> HabitScreen(habitVm, parked, profile.given) { distance -> vm.startForDistance(distance) }
                         }
                     }
                 }

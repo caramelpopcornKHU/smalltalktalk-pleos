@@ -74,6 +74,13 @@ fun NotesIcon(color: Color, size: Dp = 32.dp) = Icon24(size) {
     line("M15 3.5v5l1.6-1.2L18.2 8.5v-5", color)
 }
 
+/** 나의 대화 습관: 높이가 다른 막대 셋과 가장 높은 막대 위 라임 공 */
+@Composable
+fun HabitIcon(color: Color, size: Dp = 32.dp) = Icon24(size) {
+    line("M5 20v-5M11 20v-9M17 20v-6", color)
+    ball(11f, 6f, 2.4f, 1.6f)
+}
+
 /** 헤더: 알림 (종) */
 @Composable
 fun BellIcon(color: Color, size: Dp = 28.dp) = Icon24(size) {

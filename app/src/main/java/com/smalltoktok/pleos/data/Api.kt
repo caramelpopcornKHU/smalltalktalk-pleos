@@ -26,6 +26,8 @@ data class Scenario(
     val firstSay: String?,
     /** shared(공유 상황) 또는 내 이야기로 만든 연습 */
     val kind: String = "shared",
+    /** 관계 거리 (first-meet / familiar-face / daily) */
+    val distance: String? = null,
 ) {
     val mine get() = kind != "shared"
 }
@@ -60,6 +62,17 @@ data class ReflectionResult(
     val lines: List<ReflectionLine>,
     val scenario: Scenario?,
 )
+
+/** 대화 하나의 습관 요약 (smalltalktalk packages/shared/src/habits.ts의 Habits와 같다) */
+data class HabitRecord(
+    val startedAt: java.time.Instant,
+    val distance: String?,
+    val answers: List<HabitAnswer>,
+    val phrases: List<String>,
+    val longestRally: Int,
+)
+
+data class HabitAnswer(val shape: String, val signals: List<String>, val context: String, val delayMs: Long?)
 
 /** 아침 카드. 말투 토글: 동료에게(coworkerLine) / 처음 보는 사람에게(strangerLine) */
 data class MorningCard(
@@ -113,6 +126,7 @@ class Api(context: Context) {
             characterId = o.optStringOrNull("character_id"),
             firstSay = first?.optStringOrNull("say"),
             kind = o.optString("kind", "shared"),
+            distance = o.optStringOrNull("distance"),
         )
     }
 
@@ -148,7 +162,40 @@ class Api(context: Context) {
         audioUrl(o.optStringOrNull("audioPath"))
     }.getOrNull()
 
-    /** 오늘(KST) 발행된 공유 아침 카드. 날씨가 맨 앞 */
+    /**
+     * 나의 대화 습관 재료: 최근 days일 동안 끝난 자유 대화의 요약 태그 (본인 것만, RLS).
+     * 서버가 대화 끝날 때 저장한다(conversation.habits, habit_phrases). 원문은 없다.
+     */
+    suspend fun habitRecords(days: Int): List<HabitRecord> {
+        val since = java.time.Instant.now().minus(java.time.Duration.ofDays(days.toLong())).toString()
+        val select = "started_at,habits,habit_phrases,scenario(distance)"
+        val arr = JSONArray(
+            call("GET", "/rest/v1/conversation?select=$select&habits=not.is.null&started_at=gte.$since&order=started_at.desc"),
+        )
+        return (0 until arr.length()).map { i ->
+            val o = arr.getJSONObject(i)
+            val h = o.getJSONObject("habits")
+            val answers = h.optJSONArray("answers") ?: JSONArray()
+            val phrases = o.optJSONArray("habit_phrases")
+            HabitRecord(
+                // PostgREST는 "2026-10-23T05:34:06.12+00:00"처럼 오프셋을 붙여 준다
+                startedAt = java.time.OffsetDateTime.parse(o.getString("started_at")).toInstant(),
+                distance = o.optJSONObject("scenario")?.optStringOrNull("distance"),
+                answers = (0 until answers.length()).map { answers.getJSONObject(it) }.map { a ->
+                    val sig = a.optJSONArray("signals") ?: JSONArray()
+                    HabitAnswer(
+                        shape = a.optString("shape"),
+                        signals = (0 until sig.length()).map { sig.getString(it) },
+                        context = a.optString("context"),
+                        delayMs = if (a.isNull("delayMs")) null else a.optLong("delayMs"),
+                    )
+                },
+                phrases = phrases?.let { p -> (0 until p.length()).map { p.getString(it) } } ?: emptyList(),
+                longestRally = h.optInt("longestRally"),
+            )
+        }
+    }
+
     /** 내 성·이름 (profile, RLS로 본인 행만). 아직 입력하지 않았으면 둘 다 null */
     suspend fun profileName(): Pair<String?, String?> {
         val arr = JSONArray(call("GET", "/rest/v1/profile?select=family_name,given_name"))
@@ -279,7 +326,7 @@ class Api(context: Context) {
 
     private companion object {
         val JSON = "application/json".toMediaType()
-        const val SCENARIO_COLUMNS = "id,kind,title,who,who_short,place,character_id,scenario_turn(position,say)"
+        const val SCENARIO_COLUMNS = "id,kind,distance,title,who,who_short,place,character_id,scenario_turn(position,say)"
         // 폰 앱 MORNING_CATEGORIES 순서 (packages/shared/src/morning.ts)
         val MORNING_ORDER = listOf("weather", "fun-fact", "season", "food", "outing", "culture", "fuel", "movie-drama", "kpop", "issue", "sports")
     }
