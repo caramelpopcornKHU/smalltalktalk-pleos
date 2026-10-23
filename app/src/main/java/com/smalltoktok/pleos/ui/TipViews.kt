@@ -27,6 +27,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -120,6 +121,16 @@ fun VideoPlayer(tip: Tip, onClose: () -> Unit) {
             Column(Modifier.weight(1f)) {
                 Text(tip.title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(tip.channel.orEmpty(), style = MaterialTheme.typography.bodyLarge, color = Palette.muted)
+            }
+            // 앱 안 플레이어 화면이 나오지 않는 기기(GPU 제약 에뮬레이터 등)를 위한 대안. 열 수 있는 앱이 있을 때만 보인다
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val external = remember(id) {
+                android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://www.youtube.com/watch?v=$id"))
+            }
+            if (external.resolveActivity(context.packageManager) != null) {
+                androidx.compose.material3.TextButton(onClick = { context.startActivity(external); onClose() }) {
+                    Text("다른 앱으로 열기", style = MaterialTheme.typography.labelLarge, color = Palette.muted)
+                }
             }
             OutlinedButton(onClick = onClose, modifier = Modifier.height(64.dp)) { Text("닫기", style = MaterialTheme.typography.labelLarge) }
         }
