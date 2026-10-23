@@ -61,6 +61,9 @@ data class ReflectionResult(
     val summary: String,
     val lines: List<ReflectionLine>,
     val scenario: Scenario?,
+    /** 털어놓은 원문 (본인만, "고쳐서 다시 만들기"에 씀) */
+    val inputText: String = "",
+    val createdAt: java.time.Instant? = null,
 )
 
 /** 대화 하나의 습관 요약 (smalltalktalk packages/shared/src/habits.ts의 Habits와 같다) */
@@ -153,7 +156,33 @@ class Api(context: Context) {
             summary = o.optString("summary"),
             lines = (0 until arr.length()).map { arr.getJSONObject(it) }.map { ReflectionLine(it.getString("line"), it.getString("why")) },
             scenario = scenario,
+            inputText = story,
         )
+    }
+
+    /** 지난 아쉬운 대화 (최근 것부터, RLS로 본인 것만) */
+    suspend fun reflections(): List<ReflectionResult> {
+        val select = "id,summary,lines,scenario_id,input_text,created_at,scenario($SCENARIO_COLUMNS)"
+        val arr = JSONArray(call("GET", "/rest/v1/reflection?select=$select&status=eq.done&order=created_at.desc"))
+        return (0 until arr.length()).map { i ->
+            val o = arr.getJSONObject(i)
+            val lines = o.optJSONArray("lines") ?: JSONArray()
+            ReflectionResult(
+                reflectionId = o.getString("id"),
+                summary = o.optString("summary"),
+                lines = (0 until lines.length()).map { lines.getJSONObject(it) }
+                    .map { ReflectionLine(it.optString("line"), it.optString("why")) },
+                scenario = o.optJSONObject("scenario")?.let { scenarioOf(it) },
+                inputText = o.optString("input_text"),
+                createdAt = runCatching { java.time.OffsetDateTime.parse(o.getString("created_at")).toInstant() }.getOrNull(),
+            )
+        }
+    }
+
+    /** 지우기: 털어놓은 원문과 그 이야기로 만든 연습을 함께 지운다 (폰 앱과 같다) */
+    suspend fun deleteReflection(r: ReflectionResult) {
+        r.scenario?.let { call("DELETE", "/rest/v1/scenario?id=eq." + it.id) }
+        call("DELETE", "/rest/v1/reflection?id=eq." + r.reflectionId)
     }
 
     /** 추천 한마디 들어보기 음성 (서버 TTS). 실패하면 null */
