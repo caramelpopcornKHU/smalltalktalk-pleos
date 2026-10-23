@@ -6,6 +6,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="pleos.car.permission.STT_SERVICE" />
     <uses-permission android:name="pleos.car.permission.TTS_SERVICE" />
+    <!-- 기어(주행·정차) 상태 조회 -->
+    <uses-permission android:name="pleos.car.permission.CAR_DRIVE" />
 
     <application
         android:allowBackup="true"
@@ -17,10 +19,17 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.SmalltalktalkPleos">
 
-        <!-- 음성 인식·합성 가능 여부를 확인하는 임시 화면 -->
+        <!-- 음성 인식·합성 확인용 화면. 런처에는 없고 adb로 연다:
+             adb shell am start -n com.smalltoktok.pleos/.VoiceTestActivity -->
         <activity
             android:name=".VoiceTestActivity"
-            android:exported="true">
+            android:exported="true" />
+
+        <!-- 창 크기·방향이 바뀌어도 다시 만들지 않는다 (Compose가 반응형으로 다시 그린다) -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|density">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

@@ -1,4 +1,4 @@
-package com.hyundai.SmalltalktalkPleos
+package com.smalltoktok.pleos
 
 import org.junit.Test
 
