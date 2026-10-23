@@ -53,6 +53,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
@@ -317,17 +318,21 @@ private fun Script(state: TalkState, modifier: Modifier) {
     val who = state.scenario?.whoShort ?: "상대"
     Column(
         modifier.background(Palette.surface).padding(32.dp).verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
+        // 정차 중 옆 창에서 읽는 대본이라 본문(22sp)보다 크게 둔다 (2026-10-23 피드백)
         state.messages.forEach { m ->
             Row {
                 Text(
                     if (m.speaker == "partner") who else "나",
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 26.sp),
                     color = if (m.speaker == "partner") Palette.muted else Palette.ink,
-                    modifier = Modifier.width(120.dp),
+                    modifier = Modifier.width(140.dp),
                 )
-                Text(m.text.ifEmpty { "(말하지 못했어요)" }, style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    m.text.ifEmpty { "(말하지 못했어요)" },
+                    style = MaterialTheme.typography.bodyLarge.copy(fontSize = 28.sp, lineHeight = 40.sp),
+                )
             }
         }
     }
