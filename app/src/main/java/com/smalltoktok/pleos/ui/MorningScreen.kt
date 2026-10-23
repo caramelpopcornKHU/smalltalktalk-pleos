@@ -11,7 +11,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -31,6 +32,16 @@ import com.smalltoktok.pleos.ui.theme.Palette
 @Composable
 fun MorningScreen(vm: MorningViewModel, parked: Boolean) {
     val state by vm.state.collectAsStateWithLifecycle()
+    // 열어 둔 영상·글 화면. 영상은 주행으로 바뀌면 바로 닫는다 (Pleos: 주행 규제 중 영상 재생 금지)
+    state.openTip?.let { tip ->
+        if (tip.isVideo) {
+            LaunchedEffect(parked) { if (!parked) vm.close() }
+            if (parked) VideoPlayer(tip, onClose = { vm.close() })
+        } else {
+            ArticleReader(tip, state.readingParagraph, parked, onRead = { vm.readArticle(tip) }, onStop = { vm.stopReading() }, onClose = { vm.close() })
+        }
+        return
+    }
     Column(Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         when {
             state.loading -> Loading("오늘의 아침 카드를 불러오고 있어요")
@@ -58,16 +69,30 @@ fun MorningScreen(vm: MorningViewModel, parked: Boolean) {
                 if (!parked) {
                     if (briefing == null) Text("운전 중에는 소리로 들려드려요.", style = MaterialTheme.typography.bodyLarge, color = Palette.muted)
                 } else {
+                    // 보기 필터 (전체 · 오늘의 소재 · 영상 · 읽어주는 글). 말투 토글은 소재 카드에만 해당
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Chip("동료에게", state.tone == Tone.Coworker) { vm.setTone(Tone.Coworker) }
-                        Chip("처음 보는 사람에게", state.tone == Tone.Stranger) { vm.setTone(Tone.Stranger) }
+                        FeedFilter.entries.forEach { f -> Chip(f.label, state.filter == f) { vm.setFilter(f) } }
                     }
+                    if (state.filter == FeedFilter.All || state.filter == FeedFilter.Topics) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Chip("동료에게", state.tone == Tone.Coworker, bordered = true) { vm.setTone(Tone.Coworker) }
+                            Chip("처음 보는 사람에게", state.tone == Tone.Stranger, bordered = true) { vm.setTone(Tone.Stranger) }
+                        }
+                    }
+                    val readingId = briefing?.let { state.cards.getOrNull(it)?.id }
                     LazyVerticalGrid(
                         columns = GridCells.Adaptive(minSize = 340.dp),
                         horizontalArrangement = Arrangement.spacedBy(20.dp),
                         verticalArrangement = Arrangement.spacedBy(20.dp),
                     ) {
-                        itemsIndexed(state.cards, key = { _, c -> c.id }) { i, c -> MorningCardView(c, state.tone, reading = i == briefing) }
+                        items(state.feed, key = { it.key }) { item ->
+                            when (item) {
+                                is FeedItem.Topic -> MorningCardView(item.card, state.tone, reading = item.card.id == readingId)
+                                is FeedItem.TipItem ->
+                                    if (item.tip.isVideo) VideoTipCard(item.tip, parked) { vm.open(item.tip) }
+                                    else ArticleTipCard(item.tip) { vm.open(item.tip) }
+                            }
+                        }
                     }
                 }
             }

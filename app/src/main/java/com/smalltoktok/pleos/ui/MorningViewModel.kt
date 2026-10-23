@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.smalltoktok.pleos.Services
 import com.smalltoktok.pleos.data.MorningCard
+import com.smalltoktok.pleos.data.Tip
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,7 +21,44 @@ data class MorningState(
     /** 브리핑 중 지금 읽는 카드 */
     val briefing: Int? = null,
     val error: String? = null,
-)
+    /** 스몰토크 잘하는 법 영상·글 (2026-10-23) */
+    val tips: List<Tip> = emptyList(),
+    val filter: FeedFilter = FeedFilter.All,
+    /** 열어 둔 영상(앱 안 플레이어) 또는 글(읽어주기) */
+    val openTip: Tip? = null,
+    /** 글을 읽는 중이면 지금 읽는 문단 번호 */
+    val readingParagraph: Int? = null,
+) {
+    /** 아침 카드 목록에 영상·글을 섞는다: 소재 두 장마다 팁 하나, 남는 팁은 뒤에 */
+    val feed: List<FeedItem> get() {
+        val topics = cards.map { FeedItem.Topic(it) }
+        val extra = tips.map { FeedItem.TipItem(it) }
+        return when (filter) {
+            FeedFilter.Topics -> topics
+            FeedFilter.Videos -> extra.filter { it.tip.isVideo }
+            FeedFilter.Articles -> extra.filter { !it.tip.isVideo }
+            FeedFilter.All -> buildList {
+                val rest = ArrayDeque(extra)
+                topics.forEachIndexed { i, t ->
+                    add(t)
+                    if (i % 2 == 1) rest.removeFirstOrNull()?.let(::add)
+                }
+                addAll(rest)
+            }
+        }
+    }
+}
+
+enum class FeedFilter(val label: String) { All("전체"), Topics("오늘의 소재"), Videos("영상"), Articles("읽어주는 글") }
+
+sealed interface FeedItem {
+    val key: String
+    data class Topic(val card: MorningCard) : FeedItem { override val key get() = card.id }
+    data class TipItem(val tip: Tip) : FeedItem { override val key get() = tip.id }
+}
+
+/** 글 본문을 읽을 문단으로 나눈다 (빈 줄 기준) */
+fun Tip.paragraphs(): List<String> = body.orEmpty().split(Regex("""\n\s*\n""")).map { it.trim() }.filter { it.isNotEmpty() }
 
 /** 폰 앱 카테고리 이름 (packages/shared/src/morning.ts MORNING_CATEGORIES) */
 val MORNING_CATEGORY_LABELS = mapOf(
@@ -64,6 +102,48 @@ class MorningViewModel(app: Application) : AndroidViewModel(app) {
                 .onSuccess { cards -> _state.update { it.copy(loading = false, cards = cards) } }
                 .onFailure { e -> _state.update { it.copy(loading = false, error = friendlyError(e)) } }
         }
+        // 영상·글은 실패해도 아침 카드는 그대로 보여준다
+        viewModelScope.launch {
+            runCatching { services.api.tips() }.onSuccess { tips -> _state.update { it.copy(tips = tips) } }
+        }
+    }
+
+    fun setFilter(f: FeedFilter) = _state.update { it.copy(filter = f) }
+
+    /** 영상은 정차 중에만 연다(Pleos: 주행 중 동영상 금지). 글은 열자마자 읽기 시작 */
+    fun open(tip: Tip) {
+        stopBriefing()
+        _state.update { it.copy(openTip = tip, readingParagraph = null) }
+        if (!tip.isVideo) readArticle(tip)
+    }
+
+    fun close() {
+        brief?.cancel()
+        services.voice.stopSpeaking()
+        _state.update { it.copy(openTip = null, readingParagraph = null) }
+    }
+
+    /** 글을 문단마다 읽는다. 지금 읽는 문단을 화면에 표시한다 */
+    fun readArticle(tip: Tip) {
+        brief?.cancel()
+        services.voice.stopSpeaking()
+        brief = viewModelScope.launch {
+            try {
+                services.voice.speak(tip.title)
+                tip.paragraphs().forEachIndexed { i, p ->
+                    _state.update { it.copy(readingParagraph = i) }
+                    services.voice.speak(p)
+                }
+            } finally {
+                _state.update { it.copy(readingParagraph = null) }
+            }
+        }
+    }
+
+    fun stopReading() {
+        brief?.cancel()
+        services.voice.stopSpeaking()
+        _state.update { it.copy(readingParagraph = null) }
     }
 
     fun setTone(tone: Tone) {

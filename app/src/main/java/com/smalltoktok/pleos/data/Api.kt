@@ -66,6 +66,26 @@ data class ReflectionResult(
     val createdAt: java.time.Instant? = null,
 )
 
+/**
+ * 스몰토크 잘하는 법 카드 (DB tip, smalltalktalk content/tips/). 아침 카드 목록에 섞인다.
+ * video: 사람이 고른 유튜브 영상(앱 안 플레이어), article: 직접 쓴 글(소리로 읽어 준다)
+ */
+data class Tip(
+    val id: String,
+    val kind: String,
+    val title: String,
+    val summary: String,
+    val youtubeId: String?,
+    val channel: String?,
+    val durationSec: Int?,
+    val body: String?,
+) {
+    val isVideo get() = kind == "video"
+    val thumbnailUrl get() = youtubeId?.let { "https://i.ytimg.com/vi/$it/hqdefault.jpg" }
+    /** 글을 읽는 데 걸리는 대략의 분 (1분에 300자 남짓) */
+    val readMinutes get() = ((body?.length ?: 0) / 300).coerceAtLeast(1)
+}
+
 /** 대화 하나의 습관 요약 (smalltalktalk packages/shared/src/habits.ts의 Habits와 같다) */
 data class HabitRecord(
     val startedAt: java.time.Instant,
@@ -158,6 +178,24 @@ class Api(context: Context) {
             scenario = scenario,
             inputText = story,
         )
+    }
+
+    /** 스몰토크 잘하는 법 영상·글 (공개된 것만, 정렬 순). 네트워크가 끊기면 마지막으로 받은 목록 */
+    suspend fun tips(): List<Tip> {
+        val arr = JSONArray(cachedGet("/rest/v1/tip?select=id,kind,title,summary,youtube_id,channel,duration_sec,body&order=sort.asc", "tips"))
+        return (0 until arr.length()).map { i ->
+            val o = arr.getJSONObject(i)
+            Tip(
+                id = o.getString("id"),
+                kind = o.getString("kind"),
+                title = o.getString("title"),
+                summary = o.getString("summary"),
+                youtubeId = o.optStringOrNull("youtube_id"),
+                channel = o.optStringOrNull("channel"),
+                durationSec = if (o.isNull("duration_sec")) null else o.optInt("duration_sec"),
+                body = o.optStringOrNull("body"),
+            )
+        }
     }
 
     /** 지난 아쉬운 대화 (최근 것부터, RLS로 본인 것만) */
