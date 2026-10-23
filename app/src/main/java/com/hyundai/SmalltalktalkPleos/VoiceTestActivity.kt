@@ -46,24 +46,39 @@ class VoiceTestActivity : AppCompatActivity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(32, 32, 32, 32)
-            addView(button("1. Pleos STT 초기화 (ON_DEVICE, ko-KR)") { initStt() })
-            addView(button("2. Pleos STT 듣기 시작") { stt?.request() ?: line("STT 먼저 초기화") })
-            addView(button("3. Pleos STT 멈추기") { stt?.stop() })
-            addView(button("4. Pleos TTS 초기화 (ON_DEVICE, ko-KR)") { initTts() })
+            addView(button("1. Pleos STT 초기화 (ON_DEVICE, ko-KR)") { safely("STT 초기화") { initStt() } })
+            addView(button("2. Pleos STT 듣기 시작") { safely("STT 듣기") { stt?.request() ?: line("STT 먼저 초기화") } })
+            addView(button("3. Pleos STT 멈추기") { safely("STT 멈추기") { stt?.stop() } })
+            addView(button("4. Pleos TTS 초기화 (ON_DEVICE, ko-KR)") { safely("TTS 초기화") { initTts() } })
             addView(button("5. Pleos TTS 말하기") {
-                tts?.speak("안녕하세요. 오늘 출근길 어떠셨어요?", true) ?: line("TTS 먼저 초기화")
+                safely("TTS 말하기") { tts?.speak("안녕하세요. 오늘 출근길 어떠셨어요?", true) ?: line("TTS 먼저 초기화") }
             })
-            addView(button("6. 안드로이드 기본 음성 인식 확인") { tryAndroidStt() })
+            addView(button("6. 안드로이드 기본 음성 인식 확인") { safely("기본 인식") { tryAndroidStt() } })
             addView(ScrollView(this@VoiceTestActivity).apply { addView(log) })
         }
         setContentView(root)
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), 1)
+        val missing = PERMISSIONS.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }
-        line("준비됨. 마이크 권한: " + (ContextCompat.checkSelfPermission(
-            this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED))
+        if (missing.isNotEmpty()) ActivityCompat.requestPermissions(this, missing.toTypedArray(), 1)
+        logPermissions()
+    }
+
+    override fun onRequestPermissionsResult(code: Int, perms: Array<out String>, results: IntArray) {
+        super.onRequestPermissionsResult(code, perms, results)
+        logPermissions()
+    }
+
+    private fun logPermissions() = PERMISSIONS.forEach {
+        line("권한 ${it.substringAfterLast('.')}: " +
+            (ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED))
+    }
+
+    /** SDK가 권한 부족 등으로 예외를 던져도 앱이 죽지 않고 로그에 남게 한다 */
+    private fun safely(label: String, block: () -> Unit) = try {
+        block()
+    } catch (e: Exception) {
+        line("$label 예외: ${e.javaClass.simpleName}: ${e.message}")
     }
 
     private fun initStt() {
@@ -149,3 +164,9 @@ class VoiceTestActivity : AppCompatActivity() {
         super.onDestroy()
     }
 }
+
+private val PERMISSIONS = listOf(
+    Manifest.permission.RECORD_AUDIO,
+    "pleos.car.permission.STT_SERVICE",
+    "pleos.car.permission.TTS_SERVICE",
+)
