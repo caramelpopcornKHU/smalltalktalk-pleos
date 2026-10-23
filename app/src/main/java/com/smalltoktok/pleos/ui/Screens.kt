@@ -362,12 +362,41 @@ private fun CoachingScreen(feedback: Feedback?, parked: Boolean, vm: TalkViewMod
             Text("차를 세우면 코칭을 볼 수 있어요.", style = MaterialTheme.typography.titleLarge)
             Text("운전 중에는 화면을 보지 않아도 돼요. 코칭은 저장해 둘게요.", style = MaterialTheme.typography.bodyLarge, color = Palette.muted)
         } else if (feedback != null) {
+            // 한 마디 얹어볼 순간을 맨 위 하이라이트로 (2026-10-23 피드백): 다음 대화에서 바로 써먹을 한마디가 핵심이라서
+            feedback.missedMoment?.let { MissedMoment(it, feedback.suggestion, vm) }
             feedback.highlight?.let { CoachCard("좋았던 한마디", "“$it”", feedback.highlightReason) }
-            feedback.missedMoment?.let { CoachCard("한 마디 얹어볼 순간", it, feedback.suggestion?.let { s -> "이렇게 말해볼 수도 있어요: “$s”" }) }
             feedback.deliveryFeedback?.let { CoachCard("말하기 흐름", it, null) }
             if (feedback.point.isNotEmpty()) CoachCard("관계 포인트", feedback.point, null)
         }
         BigButton("처음으로") { vm.backHome() }
+    }
+}
+
+/** 라임 하이라이트 카드: 그 순간 + "이렇게 이어가면 더 자연스러워요" 한마디 + 들어보기 */
+@Composable
+private fun MissedMoment(moment: String, suggestion: String?, vm: TalkViewModel) {
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(Palette.accent).padding(32.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Text("한 마디 얹어볼 순간", style = MaterialTheme.typography.labelLarge, color = Palette.onAccent)
+        Text(moment, style = MaterialTheme.typography.titleLarge, color = Palette.onAccent)
+        suggestion?.let { line ->
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Palette.surface).padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text("이렇게 이어가면 대화가 더 자연스러워요", style = MaterialTheme.typography.labelLarge, color = Palette.muted)
+                Text("“$line”", style = MaterialTheme.typography.headlineMedium, color = Palette.ink)
+                Text(
+                    "맞장구 뒤에 내 생각이나 질문을 한 조각 얹으면 상대가 이어 말하기 쉬워져요.",
+                    style = MaterialTheme.typography.bodyLarge, color = Palette.muted,
+                )
+                OutlinedButton(onClick = { vm.say(line) }, modifier = Modifier.height(64.dp)) {
+                    Text("들어보기", style = MaterialTheme.typography.labelLarge)
+                }
+            }
+        }
     }
 }
 

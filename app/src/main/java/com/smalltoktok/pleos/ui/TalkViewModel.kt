@@ -169,6 +169,11 @@ class TalkViewModel(app: Application) : AndroidViewModel(app) {
         return best
     }
 
+    /** 코칭의 추천 한마디 들어보기 (Pleos TTS) */
+    fun say(text: String) {
+        viewModelScope.launch { voice.speak(text) }
+    }
+
     fun backHome() {
         loop?.cancel()
         voice.stopSpeaking()
