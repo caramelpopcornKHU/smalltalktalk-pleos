@@ -74,21 +74,26 @@ fun App(vm: TalkViewModel) {
     var extra by rememberSaveable { mutableStateOf<Extra?>(null) }
     val reflectVm: ReflectViewModel = viewModel()
     val morningVm: MorningViewModel = viewModel()
+    val profileVm: ProfileViewModel = viewModel()
+    val profile by profileVm.state.collectAsStateWithLifecycle()
     // 전체화면일 때 위 차량 정보 줄·아래 공조 바(시스템 바)와 겹치지 않게 안전 영역 안에만 그린다.
     // 상황판 옆 창(일부 화면)일 때는 겹치는 영역이 없어 여백이 0이 된다
     Box(Modifier.fillMaxSize().background(Palette.bg).windowInsetsPadding(WindowInsets.safeDrawing)) {
         when {
-            !state.booted -> SplashScreen()
+            !state.booted || !profile.loaded -> SplashScreen()
+            // 처음 켰을 때 성·이름 입력 (나중에 할게요로 넘길 수 있다)
+            profile.needsName -> NameScreen(profileVm, parked)
             state.phase == Phase.Idle -> Column(Modifier.fillMaxSize()) {
                 CapsuleHeader(
                     unread = false,
                     onBell = { extra = Extra.Notifications },
                     onGear = { extra = Extra.Settings },
+                    initial = profile.initial,
                 )
                 Box(Modifier.weight(1f)) {
                     when (extra) {
                         Extra.Notifications -> ComingSoon("알림", "아침 카드와 새 상대 소식이 여기에 모여요.")
-                        Extra.Settings -> ComingSoon("설정", "알림 시각과 계정 설정을 준비하고 있어요.")
+                        Extra.Settings -> NameScreen(profileVm, parked, asSettings = true) { extra = null }
                         null -> when (tab) {
                             Tab.Evening -> HomeScreen(state, parked, vm)
                             Tab.Reflect -> ReflectScreen(reflectVm, parked) { vm.startNew(it) }

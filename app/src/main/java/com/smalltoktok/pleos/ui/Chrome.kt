@@ -55,7 +55,14 @@ private val TabBarMaxWidth = 720.dp
  * 차량은 손이 닿기 멀어 버튼을 폰(40dp)보다 크게 둔다.
  */
 @Composable
-fun CapsuleHeader(unread: Boolean, onBell: () -> Unit, onGear: () -> Unit) {
+fun CapsuleHeader(
+    unread: Boolean,
+    onBell: () -> Unit,
+    onGear: () -> Unit,
+    /** 성 첫 글자 (2026-10-23). 이름이 없으면 동그라미를 그리지 않는다 */
+    initial: String? = null,
+    onAvatar: () -> Unit = onGear,
+) {
     // 좌우 여백은 아래 화면 내용(32dp)과 맞춘다
     Box(Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 10.dp), contentAlignment = Alignment.Center) {
         Row(
@@ -81,6 +88,20 @@ fun CapsuleHeader(unread: Boolean, onBell: () -> Unit, onGear: () -> Unit) {
                 }
             }
             CircleButton("설정", onGear) { GearIcon(Palette.bg) }
+            // 내 이름 동그라미: 라임 바탕에 성 한 글자. 누르면 이름을 고치는 설정으로
+            initial?.let { ch ->
+                Spacer(Modifier.size(6.dp))
+                Box(
+                    Modifier
+                        .size(52.dp)
+                        .clip(CircleShape)
+                        .background(Palette.accent)
+                        .semantics { contentDescription = "내 이름 설정" }
+                        .clickable(role = Role.Button, onClick = onAvatar),
+                    contentAlignment = Alignment.Center,
+                ) { Text(ch, color = Palette.onAccent, fontSize = 22.sp, fontWeight = FontWeight.Bold) }
+                Spacer(Modifier.size(4.dp))
+            }
         }
     }
 }

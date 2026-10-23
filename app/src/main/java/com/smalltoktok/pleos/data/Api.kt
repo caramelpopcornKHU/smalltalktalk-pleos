@@ -149,6 +149,23 @@ class Api(context: Context) {
     }.getOrNull()
 
     /** 오늘(KST) 발행된 공유 아침 카드. 날씨가 맨 앞 */
+    /** 내 성·이름 (profile, RLS로 본인 행만). 아직 입력하지 않았으면 둘 다 null */
+    suspend fun profileName(): Pair<String?, String?> {
+        val arr = JSONArray(call("GET", "/rest/v1/profile?select=family_name,given_name"))
+        if (arr.length() == 0) return null to null
+        val o = arr.getJSONObject(0)
+        return o.optStringOrNull("family_name") to o.optStringOrNull("given_name")
+    }
+
+    suspend fun saveProfileName(family: String?, given: String?) {
+        accessToken()
+        val uid = prefs.getString("uid", null) ?: throw ApiException(401, "no_user", "user id unknown")
+        call(
+            "PATCH", "/rest/v1/profile?id=eq." + uid,
+            JSONObject().put("family_name", family ?: JSONObject.NULL).put("given_name", given ?: JSONObject.NULL),
+        )
+    }
+
     suspend fun morningCards(): List<MorningCard> {
         val today = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul")).toString()
         val select = "id,coworker_line,stranger_line,bridge,morning_topic!inner(date,category,topic,source)"
@@ -225,7 +242,8 @@ class Api(context: Context) {
     private suspend fun accessToken(): String = authLock.withLock {
         val token = prefs.getString("access", null)
         val expiresAt = prefs.getLong("expiresAt", 0)
-        if (token != null && System.currentTimeMillis() < expiresAt - 60_000) return token
+        // uid는 2026-10-23부터 저장한다. 예전 설치는 한 번 새로 받아 uid를 채운다
+        if (token != null && prefs.contains("uid") && System.currentTimeMillis() < expiresAt - 60_000) return token
         val refresh = prefs.getString("refresh", null)
         val session = if (refresh != null) {
             runCatching { auth("/auth/v1/token?grant_type=refresh_token", JSONObject().put("refresh_token", refresh)) }
@@ -235,6 +253,7 @@ class Api(context: Context) {
         }
         prefs.edit()
             .putString("access", session.getString("access_token"))
+            .putString("uid", session.getJSONObject("user").getString("id"))
             .putString("refresh", session.getString("refresh_token"))
             .putLong("expiresAt", System.currentTimeMillis() + session.getLong("expires_in") * 1000)
             .apply()
