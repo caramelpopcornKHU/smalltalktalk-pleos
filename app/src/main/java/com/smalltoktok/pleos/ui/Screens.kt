@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
@@ -133,26 +134,84 @@ private fun HomeScreen(state: TalkState, parked: Boolean, vm: TalkViewModel) {
                 Text(state.error ?: "연습할 상황이 없어요.", style = MaterialTheme.typography.bodyLarge)
                 BigButton("다시 불러오기") { vm.loadScenarios() }
             }
-            !parked -> {
-                Text("운전 중에는 목소리로만 대화해요.", style = MaterialTheme.typography.bodyLarge, color = Palette.muted)
-                BigButton("아무 상대와 대화 시작", accent = true) { vm.start(state.scenarios.random()) }
-            }
-            else -> {
-                Text("오늘은 누구와 이야기해 볼까요?", style = MaterialTheme.typography.bodyLarge, color = Palette.muted)
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 260.dp),
-                    horizontalArrangement = Arrangement.spacedBy(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(20.dp),
-                ) {
-                    items(state.scenarios, key = { it.id }) { ScenarioCard(it, vm) }
+            // 주행 중: 오늘의 상대 사진과 큰 시작 버튼만 (목록을 읽고 고르는 일은 정차 중에)
+            !parked -> state.today?.let { TodayPartner(it, parked = false, vm, Modifier.weight(1f)) }
+            else -> LazyVerticalGrid(
+                columns = GridCells.Adaptive(minSize = 260.dp),
+                horizontalArrangement = Arrangement.spacedBy(20.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
+            ) {
+                state.today?.let { t ->
+                    item(key = "today", span = { GridItemSpan(maxLineSpan) }) {
+                        TodayPartner(t, parked = true, vm, Modifier.fillMaxWidth().height(440.dp))
+                    }
+                }
+                item(span = { GridItemSpan(maxLineSpan) }) { Section("누구와, 어떤 자리에서?") }
+                items(state.shared, key = { it.id }) { ScenarioCard(it, state.rallies[it.id], vm) }
+                if (state.mine.isNotEmpty()) {
+                    item(span = { GridItemSpan(maxLineSpan) }) { Section("내 이야기로 만든 연습") }
+                    items(state.mine, key = { it.id }) { ScenarioCard(it, state.rallies[it.id], vm) }
                 }
             }
         }
     }
 }
 
+/**
+ * 오늘의 상대 (폰 앱 2026-10-22): 큰 사진 + 상황·첫 마디 미리 보기 + 바로 시작하기 / 다른 사람.
+ * 사진 어디를 눌러도 시작한다. 첫 마디 글은 정차 중에만 보여준다.
+ */
 @Composable
-private fun ScenarioCard(s: Scenario, vm: TalkViewModel) {
+private fun TodayPartner(s: Scenario, parked: Boolean, vm: TalkViewModel, modifier: Modifier) {
+    Box(modifier.clip(RoundedCornerShape(28.dp)).clickable { vm.start(s) }) {
+        Portrait(s, vm, Modifier.fillMaxSize())
+        Box(
+            Modifier.fillMaxSize().background(
+                Brush.verticalGradient(0.4f to Color.Transparent, 1f to Palette.ink.copy(alpha = 0.85f)),
+            ),
+        )
+        Text(
+            "오늘의 상대",
+            style = MaterialTheme.typography.labelLarge,
+            color = Palette.onAccent,
+            modifier = Modifier.padding(24.dp).clip(CircleShape).background(Palette.accent).padding(horizontal = 18.dp, vertical = 10.dp),
+        )
+        Column(
+            Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(28.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text("${s.whoShort} · ${s.who}", style = MaterialTheme.typography.bodyLarge, color = Palette.surface)
+            Text(s.title, style = MaterialTheme.typography.headlineMedium, color = Palette.surface)
+            if (parked) {
+                s.firstSay?.let {
+                    Text("“$it”", style = MaterialTheme.typography.bodyLarge, color = Palette.surface, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Button(
+                    onClick = { vm.start(s) },
+                    modifier = Modifier.weight(1f).height(80.dp),
+                    shape = RoundedCornerShape(40.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Palette.accent, contentColor = Palette.onAccent),
+                ) { Text("바로 시작하기", style = MaterialTheme.typography.labelLarge) }
+                OutlinedButton(
+                    onClick = { vm.shuffleToday() },
+                    modifier = Modifier.height(80.dp),
+                    shape = RoundedCornerShape(40.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Palette.surface),
+                ) { Text("다른 사람", style = MaterialTheme.typography.labelLarge) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Section(text: String) =
+    Text(text, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 8.dp))
+
+@Composable
+private fun ScenarioCard(s: Scenario, rally: Int?, vm: TalkViewModel) {
     Column(
         Modifier
             .clip(RoundedCornerShape(24.dp))
@@ -163,6 +222,8 @@ private fun ScenarioCard(s: Scenario, vm: TalkViewModel) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(s.title, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text("${s.whoShort} · ${s.place}", style = MaterialTheme.typography.bodyLarge, color = Palette.muted, maxLines = 1)
+            // 해본 상황은 최고 랠리 수를 보여준다
+            rally?.let { Text("최고 랠리 ${it}번", style = MaterialTheme.typography.labelLarge, color = Palette.onAccent) }
         }
     }
 }

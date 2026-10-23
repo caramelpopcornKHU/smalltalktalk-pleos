@@ -29,7 +29,15 @@ data class TalkState(
     val maxPartnerTurns: Int = 6,
     val feedback: Feedback? = null,
     val error: String? = null,
-)
+    /** 상황 id → 최고 랠리 수. 서버에 남기지 않고 이 기기에만 저장한다(폰 앱과 같다) */
+    val rallies: Map<String, Int> = emptyMap(),
+    /** 홈 맨 위 "오늘의 상대" */
+    val todayId: String? = null,
+) {
+    val shared get() = scenarios.filter { !it.mine }
+    val mine get() = scenarios.filter { it.mine }
+    val today get() = scenarios.firstOrNull { it.id == todayId }
+}
 
 /**
  * 저녁 연습의 자유 대화를 차량용으로: 상대 말(Pleos TTS) → 내 말(Pleos STT) → 서버가 다음 말을 만든다.
@@ -48,16 +56,36 @@ class TalkViewModel(app: Application) : AndroidViewModel(app) {
     private var conversationId: String? = null
     private val metrics = mutableListOf<Metrics>()
     private var loop: Job? = null
+    private val records = app.getSharedPreferences("rally", 0)
 
     init {
+        _state.update { st -> st.copy(rallies = records.all.mapNotNull { (k, v) -> (v as? Int)?.let { k to it } }.toMap()) }
         loadScenarios()
+    }
+
+    /** 오늘의 상대: 아직 안 해본 공유 상황 먼저, 다 해봤으면 전체에서. 방금 본 상황은 뺀다 */
+    fun shuffleToday() = _state.update { st ->
+        val candidates = st.shared.let { all -> if (all.size > 1) all.filter { it.id != st.todayId } else all }
+        val fresh = candidates.filter { it.id !in st.rallies }
+        st.copy(todayId = (fresh.ifEmpty { candidates }).randomOrNull()?.id)
+    }
+
+    /** 연습을 마치면 이전 기록보다 많이 주고받았을 때만 최고 기록을 바꾼다 */
+    private fun recordRally(scenarioId: String, rally: Int) {
+        val best = _state.value.rallies[scenarioId]
+        if (best != null && best >= rally) return
+        records.edit().putInt(scenarioId, rally).apply()
+        _state.update { it.copy(rallies = it.rallies + (scenarioId to rally)) }
     }
 
     fun loadScenarios() {
         _state.update { it.copy(loadingScenarios = true, error = null) }
         viewModelScope.launch {
             runCatching { api.scenarios() }
-                .onSuccess { list -> _state.update { it.copy(scenarios = list, loadingScenarios = false, booted = true) } }
+                .onSuccess { list ->
+                    _state.update { it.copy(scenarios = list, loadingScenarios = false, booted = true) }
+                    if (_state.value.today == null) shuffleToday()
+                }
                 .onFailure { e -> _state.update { it.copy(loadingScenarios = false, booted = true, error = messageOf(e)) } }
         }
     }
@@ -126,7 +154,19 @@ class TalkViewModel(app: Application) : AndroidViewModel(app) {
         }
         _state.update { it.copy(phase = Phase.Finishing) }
         val feedback = api.finish(id, msgs, metrics.take(msgs.count { it.speaker == "me" && it.text.isNotEmpty() }))
+        _state.value.scenario?.let { recordRally(it.id, rallyOf(msgs)) }
         _state.update { it.copy(phase = Phase.Done, feedback = feedback) }
+    }
+
+    /** 랠리: 끊기지 않고(시간 안에 대답하며) 주고받은 가장 긴 횟수 */
+    private fun rallyOf(msgs: List<Message>): Int {
+        var best = 0
+        var run = 0
+        msgs.filter { it.speaker == "me" }.forEach { m ->
+            run = if (m.text.isNotEmpty()) run + 1 else 0
+            best = maxOf(best, run)
+        }
+        return best
     }
 
     fun backHome() {

@@ -24,7 +24,11 @@ data class Scenario(
     val place: String,
     val characterId: String?,
     val firstSay: String?,
-)
+    /** shared(공유 상황) 또는 내 이야기로 만든 연습 */
+    val kind: String = "shared",
+) {
+    val mine get() = kind != "shared"
+}
 
 data class Message(val speaker: String, val text: String) {
     fun toJson() = JSONObject().put("speaker", speaker).put("text", text)
@@ -108,6 +112,7 @@ class Api(context: Context) {
             place = o.getString("place"),
             characterId = o.optStringOrNull("character_id"),
             firstSay = first?.optStringOrNull("say"),
+            kind = o.optString("kind", "shared"),
         )
     }
 
@@ -255,7 +260,7 @@ class Api(context: Context) {
 
     private companion object {
         val JSON = "application/json".toMediaType()
-        const val SCENARIO_COLUMNS = "id,title,who,who_short,place,character_id,scenario_turn(position,say)"
+        const val SCENARIO_COLUMNS = "id,kind,title,who,who_short,place,character_id,scenario_turn(position,say)"
         // 폰 앱 MORNING_CATEGORIES 순서 (packages/shared/src/morning.ts)
         val MORNING_ORDER = listOf("weather", "fun-fact", "season", "food", "outing", "movie-drama", "kpop", "issue", "sports")
     }
