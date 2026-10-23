@@ -12,6 +12,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -70,7 +73,9 @@ fun App(vm: TalkViewModel) {
     var extra by rememberSaveable { mutableStateOf<Extra?>(null) }
     val reflectVm: ReflectViewModel = viewModel()
     val morningVm: MorningViewModel = viewModel()
-    Box(Modifier.fillMaxSize().background(Palette.bg)) {
+    // 전체화면일 때 위 차량 정보 줄·아래 공조 바(시스템 바)와 겹치지 않게 안전 영역 안에만 그린다.
+    // 상황판 옆 창(일부 화면)일 때는 겹치는 영역이 없어 여백이 0이 된다
+    Box(Modifier.fillMaxSize().background(Palette.bg).windowInsetsPadding(WindowInsets.safeDrawing)) {
         when {
             !state.booted -> SplashScreen()
             state.phase == Phase.Idle -> Column(Modifier.fillMaxSize()) {
