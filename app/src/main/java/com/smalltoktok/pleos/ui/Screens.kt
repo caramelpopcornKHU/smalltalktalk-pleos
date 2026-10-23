@@ -50,6 +50,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
 import com.smalltoktok.pleos.data.Feedback
 import com.smalltoktok.pleos.data.Scenario
@@ -66,9 +67,12 @@ fun App(vm: TalkViewModel) {
     val parked by vm.driving.parked.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableStateOf(Tab.Evening) }
     var extra by rememberSaveable { mutableStateOf<Extra?>(null) }
+    val reflectVm: ReflectViewModel = viewModel()
+    val morningVm: MorningViewModel = viewModel()
     Box(Modifier.fillMaxSize().background(Palette.bg)) {
-        when (state.phase) {
-            Phase.Idle -> Column(Modifier.fillMaxSize()) {
+        when {
+            !state.booted -> SplashScreen()
+            state.phase == Phase.Idle -> Column(Modifier.fillMaxSize()) {
                 CapsuleHeader(
                     unread = false,
                     onBell = { extra = Extra.Notifications },
@@ -80,8 +84,8 @@ fun App(vm: TalkViewModel) {
                         Extra.Settings -> ComingSoon("설정", "알림 시각과 계정 설정을 준비하고 있어요.")
                         null -> when (tab) {
                             Tab.Evening -> HomeScreen(state, parked, vm)
-                            Tab.Reflect -> ComingSoon("아쉬운 대화", "아쉬웠던 순간을 말로 털어놓고 연습 상황으로 만들어요.")
-                            Tab.Morning -> ComingSoon("아침 카드", "출근길에 오늘 던질 한마디를 들려드려요.")
+                            Tab.Reflect -> ReflectScreen(reflectVm, parked) { vm.startNew(it) }
+                            Tab.Morning -> MorningScreen(morningVm, parked)
                             Tab.Notes -> ComingSoon("관계 노트", "연습하며 쌓인 관계 포인트를 모아 봐요.")
                         }
                     }
@@ -91,10 +95,26 @@ fun App(vm: TalkViewModel) {
                     extra = null
                 }
             }
-            Phase.Done -> CoachingScreen(state.feedback, parked, vm)
-            Phase.Error -> ErrorScreen(state.error, vm)
+            state.phase == Phase.Done -> CoachingScreen(state.feedback, parked, vm)
+            state.phase == Phase.Error -> ErrorScreen(state.error, vm)
             else -> TalkScreen(state, parked, vm)
         }
+    }
+}
+
+/** 앱을 켤 때: 로고와 함께 첫 불러오기(익명 로그인, 상황 목록)를 기다린다 */
+@Composable
+private fun SplashScreen() {
+    Column(
+        Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        val pulse = rememberInfiniteTransition(label = "splash")
+        val s by pulse.animateFloat(1f, 1.06f, infiniteRepeatable(tween(800), RepeatMode.Reverse), label = "s")
+        Box(Modifier.scale(s)) { RallyMark(size = 140.dp) }
+        Text("스몰톡톡", style = MaterialTheme.typography.displaySmall)
+        Text("오늘의 대화 상대를 부르고 있어요", style = MaterialTheme.typography.bodyLarge, color = Palette.muted)
     }
 }
 
@@ -249,7 +269,7 @@ private fun Script(state: TalkState, modifier: Modifier) {
 
 /** 라임 공 마이크. 듣는 동안 숨 쉬듯 커졌다 작아지고, 누르면 말 끝내기 */
 @Composable
-private fun RallyBall(listening: Boolean, onClick: () -> Unit) {
+internal fun RallyBall(listening: Boolean, onClick: () -> Unit) {
     val pulse = rememberInfiniteTransition(label = "ball")
     val s by pulse.animateFloat(1f, if (listening) 1.12f else 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "s")
     Box(
@@ -325,7 +345,7 @@ private fun Caption(text: String) =
     Text(text, style = MaterialTheme.typography.displaySmall, color = Palette.surface, maxLines = 4, overflow = TextOverflow.Ellipsis)
 
 @Composable
-private fun Loading(text: String) = Row(verticalAlignment = Alignment.CenterVertically) {
+internal fun Loading(text: String) = Row(verticalAlignment = Alignment.CenterVertically) {
     CircularProgressIndicator(color = Palette.ink)
     Spacer(Modifier.width(16.dp))
     Text(text, style = MaterialTheme.typography.bodyLarge)
@@ -333,7 +353,7 @@ private fun Loading(text: String) = Row(verticalAlignment = Alignment.CenterVert
 
 /** 차량 터치 영역은 크게 (높이 88dp) */
 @Composable
-private fun BigButton(text: String, accent: Boolean = false, onClick: () -> Unit) = Button(
+internal fun BigButton(text: String, accent: Boolean = false, onClick: () -> Unit) = Button(
     onClick = onClick,
     modifier = Modifier.fillMaxWidth().height(88.dp),
     shape = RoundedCornerShape(44.dp),

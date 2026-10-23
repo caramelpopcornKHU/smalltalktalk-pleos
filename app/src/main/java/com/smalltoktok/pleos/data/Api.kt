@@ -44,8 +44,29 @@ data class Metrics(
         .put("longestPauseMs", longestPauseMs)
 }
 
-data class Started(val conversationId: String, val maxPartnerTurns: Int, val firstSay: String)
-data class PartnerTurn(val say: String, val end: Boolean)
+/** audioUrl: 서버(Google Chirp)가 합성한 음성 파일. 합성에 실패하면 null이고 Pleos TTS로 읽는다 */
+data class Started(val conversationId: String, val maxPartnerTurns: Int, val firstSay: String, val firstAudioUrl: String?)
+data class PartnerTurn(val say: String, val end: Boolean, val audioUrl: String?)
+
+data class ReflectionLine(val line: String, val why: String)
+/** 아쉬운 대화 결과. scenario가 null이면 연습으로 만들지 않은 이야기(무거운 이야기 등) */
+data class ReflectionResult(
+    val reflectionId: String,
+    val summary: String,
+    val lines: List<ReflectionLine>,
+    val scenario: Scenario?,
+)
+
+/** 아침 카드. 말투 토글: 동료에게(coworkerLine) / 처음 보는 사람에게(strangerLine) */
+data class MorningCard(
+    val id: String,
+    val category: String,
+    val topic: String,
+    val coworkerLine: String,
+    val strangerLine: String,
+    val bridge: String,
+    val sourceName: String?,
+)
 data class Feedback(
     val highlight: String?,
     val highlightReason: String?,
@@ -73,24 +94,73 @@ class Api(context: Context) {
 
     fun characterImageUrl(id: String) = "$base/storage/v1/object/public/characters/$id.jpg"
 
+    /** scenario-audio 버킷 안 경로 → 공개 URL */
+    private fun audioUrl(path: String?) = path?.let { "$base/storage/v1/object/public/scenario-audio/$it" }
+
+    private fun scenarioOf(o: JSONObject): Scenario {
+        val turns = o.optJSONArray("scenario_turn") ?: JSONArray()
+        val first = (0 until turns.length()).map { turns.getJSONObject(it) }.minByOrNull { it.getInt("position") }
+        return Scenario(
+            id = o.getString("id"),
+            title = o.getString("title"),
+            who = o.getString("who"),
+            whoShort = o.getString("who_short"),
+            place = o.getString("place"),
+            characterId = o.optStringOrNull("character_id"),
+            firstSay = first?.optStringOrNull("say"),
+        )
+    }
+
     suspend fun scenarios(): List<Scenario> {
-        val select = "id,title,who,who_short,place,character_id,scenario_turn(position,say)"
-        val arr = JSONArray(call("GET", "/rest/v1/scenario?select=$select&hidden_at=is.null&order=created_at.asc"))
+        val arr = JSONArray(call("GET", "/rest/v1/scenario?select=$SCENARIO_COLUMNS&hidden_at=is.null&order=created_at.asc"))
+        return (0 until arr.length()).map { scenarioOf(arr.getJSONObject(it)) }
+    }
+
+    /** 아쉬운 대화: 털어놓은 이야기로 요약·추천 한마디·연습 상황을 만든다 (Edge Function reflection) */
+    suspend fun reflect(story: String, distance: String?): ReflectionResult {
+        val o = JSONObject(
+            call("POST", "/functions/v1/reflection", JSONObject().put("story", story).put("distance", distance ?: JSONObject.NULL)),
+        )
+        val arr = o.optJSONArray("lines") ?: JSONArray()
+        val scenarioId = o.optStringOrNull("scenarioId")
+        val scenario = scenarioId?.let {
+            val rows = JSONArray(call("GET", "/rest/v1/scenario?select=$SCENARIO_COLUMNS&id=eq.$it"))
+            if (rows.length() > 0) scenarioOf(rows.getJSONObject(0)) else null
+        }
+        return ReflectionResult(
+            reflectionId = o.getString("reflectionId"),
+            summary = o.optString("summary"),
+            lines = (0 until arr.length()).map { arr.getJSONObject(it) }.map { ReflectionLine(it.getString("line"), it.getString("why")) },
+            scenario = scenario,
+        )
+    }
+
+    /** 추천 한마디 들어보기 음성 (서버 TTS). 실패하면 null */
+    suspend fun reflectionLineAudio(reflectionId: String, index: Int): String? = runCatching {
+        val o = JSONObject(
+            call("POST", "/functions/v1/reflection", JSONObject().put("action", "speak").put("reflectionId", reflectionId).put("index", index)),
+        )
+        audioUrl(o.optStringOrNull("audioPath"))
+    }.getOrNull()
+
+    /** 오늘(KST) 발행된 공유 아침 카드. 날씨가 맨 앞 */
+    suspend fun morningCards(): List<MorningCard> {
+        val today = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul")).toString()
+        val select = "id,coworker_line,stranger_line,bridge,morning_topic!inner(date,category,topic,source)"
+        val arr = JSONArray(call("GET", "/rest/v1/morning_card?select=$select&owner_id=is.null&morning_topic.date=eq.$today"))
         return (0 until arr.length()).map { i ->
             val o = arr.getJSONObject(i)
-            val turns = o.optJSONArray("scenario_turn") ?: JSONArray()
-            val first = (0 until turns.length()).map { turns.getJSONObject(it) }
-                .minByOrNull { it.getInt("position") }
-            Scenario(
+            val t = o.getJSONObject("morning_topic")
+            MorningCard(
                 id = o.getString("id"),
-                title = o.getString("title"),
-                who = o.getString("who"),
-                whoShort = o.getString("who_short"),
-                place = o.getString("place"),
-                characterId = o.optStringOrNull("character_id"),
-                firstSay = first?.optStringOrNull("say"),
+                category = t.getString("category"),
+                topic = t.getString("topic"),
+                coworkerLine = o.getString("coworker_line"),
+                strangerLine = o.getString("stranger_line"),
+                bridge = o.getString("bridge"),
+                sourceName = t.optJSONObject("source")?.optStringOrNull("name"),
             )
-        }
+        }.sortedBy { MORNING_ORDER.indexOf(it.category).let { i -> if (i < 0) 99 else i } }
     }
 
     suspend fun start(scenarioId: String): Started {
@@ -99,6 +169,7 @@ class Api(context: Context) {
             conversationId = o.getString("conversationId"),
             maxPartnerTurns = o.getInt("maxPartnerTurns"),
             firstSay = o.getJSONObject("first").getString("say"),
+            firstAudioUrl = audioUrl(o.getJSONObject("first").optStringOrNull("audioPath")),
         )
     }
 
@@ -107,7 +178,7 @@ class Api(context: Context) {
             JSONObject().put("action", "turn").put("conversationId", conversationId)
                 .put("messages", JSONArray(messages.map { it.toJson() })),
         )
-        return PartnerTurn(say = o.getString("say"), end = o.optBoolean("end"))
+        return PartnerTurn(say = o.getString("say"), end = o.optBoolean("end"), audioUrl = audioUrl(o.optStringOrNull("audioPath")))
     }
 
     suspend fun finish(conversationId: String, messages: List<Message>, metrics: List<Metrics>): Feedback {
@@ -184,6 +255,9 @@ class Api(context: Context) {
 
     private companion object {
         val JSON = "application/json".toMediaType()
+        const val SCENARIO_COLUMNS = "id,title,who,who_short,place,character_id,scenario_turn(position,say)"
+        // 폰 앱 MORNING_CATEGORIES 순서 (packages/shared/src/morning.ts)
+        val MORNING_ORDER = listOf("weather", "fun-fact", "season", "food", "outing", "movie-drama", "kpop", "issue", "sports")
     }
 }
 

@@ -3,14 +3,12 @@ package com.smalltoktok.pleos.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.smalltoktok.pleos.data.Api
+import com.smalltoktok.pleos.Services
 import com.smalltoktok.pleos.data.ApiException
 import com.smalltoktok.pleos.data.Feedback
 import com.smalltoktok.pleos.data.Message
 import com.smalltoktok.pleos.data.Metrics
 import com.smalltoktok.pleos.data.Scenario
-import com.smalltoktok.pleos.vehicle.Driving
-import com.smalltoktok.pleos.voice.Voice
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,6 +20,8 @@ enum class Phase { Idle, Starting, PartnerSpeaking, Listening, Thinking, Finishi
 data class TalkState(
     val scenarios: List<Scenario> = emptyList(),
     val loadingScenarios: Boolean = true,
+    /** 앱을 켠 뒤 첫 불러오기가 끝났는지. 그 전에는 로딩 화면을 보여준다 */
+    val booted: Boolean = false,
     val scenario: Scenario? = null,
     val phase: Phase = Phase.Idle,
     val messages: List<Message> = emptyList(),
@@ -37,9 +37,10 @@ data class TalkState(
  * ViewModel이 화면 회전·창 크기 변경을 넘어 살아 있어서, 차량 창이 바뀌어도 대화가 이어진다.
  */
 class TalkViewModel(app: Application) : AndroidViewModel(app) {
-    val api = Api(app)
-    val voice = Voice(app).also { it.initialize() }
-    val driving = Driving(app).also { it.start(viewModelScope) }
+    private val services = Services.get(app)
+    val api = services.api
+    val voice = services.voice
+    val driving = services.driving
 
     private val _state = MutableStateFlow(TalkState())
     val state: StateFlow<TalkState> = _state
@@ -56,8 +57,8 @@ class TalkViewModel(app: Application) : AndroidViewModel(app) {
         _state.update { it.copy(loadingScenarios = true, error = null) }
         viewModelScope.launch {
             runCatching { api.scenarios() }
-                .onSuccess { list -> _state.update { it.copy(scenarios = list, loadingScenarios = false) } }
-                .onFailure { e -> _state.update { it.copy(loadingScenarios = false, error = messageOf(e)) } }
+                .onSuccess { list -> _state.update { it.copy(scenarios = list, loadingScenarios = false, booted = true) } }
+                .onFailure { e -> _state.update { it.copy(loadingScenarios = false, booted = true, error = messageOf(e)) } }
         }
     }
 
@@ -74,9 +75,10 @@ class TalkViewModel(app: Application) : AndroidViewModel(app) {
                 conversationId = started.conversationId
                 _state.update { it.copy(maxPartnerTurns = started.maxPartnerTurns) }
                 var say = started.firstSay
+                var audio = started.firstAudioUrl
                 var end = false
                 while (true) {
-                    partnerSays(say)
+                    partnerSays(say, audio)
                     if (end || _state.value.partnerTurns >= _state.value.maxPartnerTurns) break
                     _state.update { it.copy(phase = Phase.Listening) }
                     val heard = voice.listen()
@@ -85,6 +87,7 @@ class TalkViewModel(app: Application) : AndroidViewModel(app) {
                     _state.update { it.copy(phase = Phase.Thinking) }
                     val next = api.turn(started.conversationId, _state.value.messages)
                     say = next.say
+                    audio = next.audioUrl
                     end = next.end
                 }
                 finish()
@@ -132,23 +135,19 @@ class TalkViewModel(app: Application) : AndroidViewModel(app) {
         _state.update { it.copy(phase = Phase.Idle, scenario = null, feedback = null, error = null) }
     }
 
-    private suspend fun partnerSays(say: String) {
+    private suspend fun partnerSays(say: String, audioUrl: String?) {
         addMessage(Message("partner", say))
         _state.update { it.copy(phase = Phase.PartnerSpeaking, partnerTurns = it.partnerTurns + 1) }
-        voice.speak(say)
+        voice.speak(say, audioUrl)
     }
 
     private fun addMessage(m: Message) = _state.update { it.copy(messages = it.messages + m) }
 
-    private fun messageOf(e: Throwable): String = when {
-        e is ApiException && e.code == "quota_exceeded" -> "체험 횟수를 모두 썼어요."
-        e is ApiException -> "서버 오류가 났어요 (${e.code})."
-        e is java.io.IOException -> "인터넷 연결이 불안정해요. 잠시 뒤 다시 시도해 주세요."
-        else -> "문제가 생겼어요: ${e.message}"
-    }
+    private fun messageOf(e: Throwable) = friendlyError(e)
 
-    override fun onCleared() {
-        voice.release()
-        driving.release()
+    /** 아쉬운 대화로 만든 연습 상황처럼 목록에 없던 시나리오가 생기면 목록을 새로 받는다 */
+    fun startNew(scenario: Scenario) {
+        loadScenarios()
+        start(scenario)
     }
 }

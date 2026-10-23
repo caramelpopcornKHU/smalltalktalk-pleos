@@ -5,6 +5,12 @@ import ai.pleos.playground.stt.listener.ResultListener
 import ai.pleos.playground.tts.TextToSpeech
 import ai.pleos.playground.tts.listener.EventListener
 import android.content.Context
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
+import android.media.MediaPlayer
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,6 +30,10 @@ data class Heard(val text: String, val responseDelayMs: Long, val speakingMs: Lo
  * Pleos SpeechToText·TextToSpeech를 코루틴으로 감싼다.
  * 2026-10-23 에뮬레이터에서 ON_DEVICE 모드 한국어 인식·합성을 앱 등록 없이 확인했다.
  * 주의: TTS는 initialize 성공 뒤에 리스너를 붙여야 한다(먼저 붙이면 SDK 내부 예외).
+ *
+ * 목소리 (2026-10-23 결정): 인터넷이 되면 폰 앱과 같은 서버 목소리(Google Chirp 3 HD, 상대 성별에 맞춘 Leda/Orus)를
+ * 재생하고, 오프라인이거나 파일이 없거나 재생에 실패하면 차량 내장 Pleos TTS(Gleo)로 읽는다.
+ * 재생 전 오디오 포커스를 잠깐 받아 다른 소리(음악 등)를 줄인다(Pleos 오디오 포커스 정책).
  */
 class Voice(context: Context) {
     private val app = context.applicationContext
@@ -82,8 +92,58 @@ class Voice(context: Context) {
         })
     }
 
+    private val audioManager = app.getSystemService(AudioManager::class.java)
+    private val speechAttributes = AudioAttributes.Builder()
+        .setUsage(AudioAttributes.USAGE_ASSISTANT)
+        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+        .build()
+    private val focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+        .setAudioAttributes(speechAttributes)
+        .build()
+    private var player: MediaPlayer? = null
+
+    private fun online(): Boolean {
+        val cm = app.getSystemService(ConnectivityManager::class.java)
+        val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return false
+        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+    }
+
+    /** 서버 목소리가 있으면 그걸로, 아니면 Pleos TTS로 다 읽을 때까지 기다린다 */
+    suspend fun speak(text: String, audioUrl: String? = null) {
+        audioManager.requestAudioFocus(focusRequest)
+        try {
+            if (audioUrl != null && online() && playUrl(audioUrl)) return
+            speakOnDevice(text)
+        } finally {
+            audioManager.abandonAudioFocusRequest(focusRequest)
+        }
+    }
+
+    /** 끝까지 재생하면 true, 준비·재생에 실패하면 false (그때는 Pleos TTS로 읽는다) */
+    private suspend fun playUrl(url: String): Boolean {
+        val done = CompletableDeferred<Boolean>()
+        val mp = MediaPlayer().apply {
+            setAudioAttributes(speechAttributes)
+            setOnPreparedListener { it.start() }
+            setOnCompletionListener { done.complete(true) }
+            setOnErrorListener { _, _, _ -> done.complete(false); true }
+        }
+        player = mp
+        return try {
+            mp.setDataSource(url)
+            mp.prepareAsync()
+            withTimeoutOrNull(30_000) { done.await() } ?: false
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            false
+        } finally {
+            player = null
+            mp.release()
+        }
+    }
+
     /** 다 읽을 때까지 기다린다. 합성이 안 되면 글자 수로 어림한 시간만큼 기다린다 */
-    suspend fun speak(text: String) {
+    private suspend fun speakOnDevice(text: String) {
         val ready = withTimeoutOrNull(5_000) { ttsReady.await() } ?: false
         if (!ready) return
         val done = CompletableDeferred<Unit>()
@@ -114,7 +174,10 @@ class Voice(context: Context) {
         heard?.complete(_partial.value)
     }
 
-    fun stopSpeaking() = tts.stop()
+    fun stopSpeaking() {
+        runCatching { player?.stop() }
+        runCatching { tts.stop() }
+    }
 
     fun release() {
         runCatching { stt.release() }

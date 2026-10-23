@@ -1,0 +1,12 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Android 12+ 시스템 시작 화면: 세이지 바탕 위 랠리 로고 (이어서 Compose 로딩 화면이 나온다) -->
+    <style name="Theme.SmalltalktalkPleos" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/ink</item>
+        <item name="colorOnPrimary">@color/sage</item>
+        <item name="android:windowBackground">@color/sage</item>
+        <item name="android:statusBarColor">@color/sage</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowSplashScreenBackground">@color/sage</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+    </style>
+</resources>

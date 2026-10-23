@@ -4,6 +4,8 @@
 
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 인터넷이 되면 서버 목소리, 아니면 Pleos TTS -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="pleos.car.permission.STT_SERVICE" />
     <uses-permission android:name="pleos.car.permission.TTS_SERVICE" />
     <!-- 기어(주행·정차) 상태 조회 -->
