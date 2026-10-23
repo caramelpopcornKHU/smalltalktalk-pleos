@@ -46,8 +46,8 @@ enum class Tab(val label: String, val icon: @Composable (Color) -> Unit) {
 /** 탭 바 밖의 화면 (헤더 버튼으로 연다) */
 enum class Extra(val label: String) { Notifications("알림"), Settings("설정") }
 
-// 차량 화면은 넓어서 캡슐이 끝까지 늘어나지 않게 폭을 제한한다
-private val CapsuleMaxWidth = 720.dp
+// 탭 바는 아이콘 4개가 너무 벌어지지 않게 폭을 제한한다. 헤더는 화면 폭에 맞춰 늘어난다(2026-10-23 피드백)
+private val TabBarMaxWidth = 720.dp
 
 /**
  * 탭 화면 머리 (폰 앱 B안, docs/prototypes/header.html): 떠 있는 먹색 캡슐.
@@ -56,10 +56,10 @@ private val CapsuleMaxWidth = 720.dp
  */
 @Composable
 fun CapsuleHeader(unread: Boolean, onBell: () -> Unit, onGear: () -> Unit) {
-    Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), contentAlignment = Alignment.Center) {
+    // 좌우 여백은 아래 화면 내용(32dp)과 맞춘다
+    Box(Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 10.dp), contentAlignment = Alignment.Center) {
         Row(
             Modifier
-                .widthIn(max = CapsuleMaxWidth)
                 .fillMaxWidth()
                 .height(72.dp)
                 .clip(CircleShape)
@@ -94,7 +94,7 @@ fun FloatingTabBar(current: Tab?, onSelect: (Tab) -> Unit) {
     Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), contentAlignment = Alignment.Center) {
         Row(
             Modifier
-                .widthIn(max = CapsuleMaxWidth)
+                .widthIn(max = TabBarMaxWidth)
                 .fillMaxWidth()
                 .height(84.dp)
                 .clip(CircleShape)
