@@ -50,7 +50,7 @@ fun NameScreen(vm: ProfileViewModel, parked: Boolean, asSettings: Boolean = fals
                 style = MaterialTheme.typography.bodyLarge, color = Palette.muted,
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
-                RallyBall(listening = state.listening, onClick = {
+                RallyBall(listening = state.listening, animate = parked, onClick = {
                     if (!state.listening) vm.listenName { f, g -> family = f; given = g }
                 })
                 Spacer(Modifier.width(20.dp))

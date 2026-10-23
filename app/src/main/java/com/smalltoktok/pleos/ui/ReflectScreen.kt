@@ -75,7 +75,7 @@ private fun Telling(state: ReflectState, partial: String, parked: Boolean, vm: R
     }
     if (listening || first) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            RallyBall(listening = listening, onClick = { vm.toggleListening() })
+            RallyBall(listening = listening, onClick = { vm.toggleListening() }, animate = parked)
             Spacer(Modifier.width(24.dp))
             Text(
                 when {

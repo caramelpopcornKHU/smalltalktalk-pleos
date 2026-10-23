@@ -12,6 +12,8 @@ val secrets = Properties().apply {
 
 android {
     namespace = "com.smalltoktok.pleos"
+    // AAOS Car API (CarUxRestrictions). 차량 플랫폼에 들어 있는 공유 라이브러리라 APK에 넣지 않는다
+    useLibrary("android.car")
     compileSdk {
         version = release(37)
     }
@@ -64,7 +66,6 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
     implementation(libs.okhttp)
-    implementation(libs.pleos.vehicle)
     implementation(libs.pleos.navihelper)
     implementation(libs.pleos.stt)
     implementation(libs.pleos.tts)

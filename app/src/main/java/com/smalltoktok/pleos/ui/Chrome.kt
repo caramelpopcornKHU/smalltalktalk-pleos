@@ -45,7 +45,7 @@ enum class Tab(val label: String, val icon: @Composable (Color) -> Unit) {
 }
 
 /** 탭 바 밖의 화면 (헤더 버튼으로 연다) */
-enum class Extra(val label: String) { Notifications("알림"), Settings("설정") }
+enum class Extra(val label: String) { Settings("설정") }
 
 // 탭 바는 아이콘 4개가 너무 벌어지지 않게 폭을 제한한다. 헤더는 화면 폭에 맞춰 늘어난다(2026-10-23 피드백)
 private val TabBarMaxWidth = 720.dp
@@ -58,7 +58,8 @@ private val TabBarMaxWidth = 720.dp
 @Composable
 fun CapsuleHeader(
     unread: Boolean,
-    onBell: () -> Unit,
+    /** 알림함. null이면 종을 숨긴다 (공모전 버전은 알림함이 없어 임시 화면을 두지 않는다, Pleos 심사: 임시 콘텐츠 금지) */
+    onBell: (() -> Unit)?,
     onGear: () -> Unit,
     /** 성 첫 글자 (2026-10-23). 이름이 없으면 동그라미를 그리지 않는다 */
     initial: String? = null,
@@ -79,7 +80,7 @@ fun CapsuleHeader(
             Spacer(Modifier.size(8.dp))
             Text("스몰톡톡", color = Palette.surface, fontSize = 22.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.weight(1f))
-            CircleButton(if (unread) "알림, 새 소식 있음" else "알림", onBell) {
+            if (onBell != null) CircleButton(if (unread) "알림, 새 소식 있음" else "알림", onBell) {
                 BellIcon(Palette.bg)
                 if (unread) {
                     Box(
@@ -158,16 +159,3 @@ private fun CircleButton(label: String, onClick: () -> Unit, size: Dp = 56.dp, c
         contentAlignment = Alignment.Center,
         content = content,
     )
-
-/** 아직 차량 버전으로 옮기지 않은 화면 */
-@Composable
-fun ComingSoon(title: String, body: String) {
-    Column(
-        Modifier.fillMaxSize().padding(32.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(title, style = MaterialTheme.typography.headlineMedium)
-        Text(body, style = MaterialTheme.typography.bodyLarge, color = Palette.muted)
-    }
-}

@@ -105,8 +105,10 @@ class Api(context: Context) {
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(40, TimeUnit.SECONDS)
         .build()
-    // TODO: 출시 전 토큰을 Keystore 기반 저장소로 옮긴다 (Pleos 보안 가이드)
     private val prefs = context.getSharedPreferences("auth", Context.MODE_PRIVATE)
+    /** 토큰은 Keystore로 암호화해 둔다 (Pleos 보안 가이드). uid·만료 시각은 민감정보가 아니라 그대로 */
+    private val tokens = SecureStore(prefs)
+    private val cache = context.getSharedPreferences("cache", Context.MODE_PRIVATE)
     private val authLock = Mutex()
 
     fun characterImageUrl(id: String) = "$base/storage/v1/object/public/characters/$id.jpg"
@@ -131,7 +133,7 @@ class Api(context: Context) {
     }
 
     suspend fun scenarios(): List<Scenario> {
-        val arr = JSONArray(call("GET", "/rest/v1/scenario?select=$SCENARIO_COLUMNS&hidden_at=is.null&order=created_at.asc"))
+        val arr = JSONArray(cachedGet("/rest/v1/scenario?select=$SCENARIO_COLUMNS&hidden_at=is.null&order=created_at.asc", "scenarios"))
         return (0 until arr.length()).map { scenarioOf(arr.getJSONObject(it)) }
     }
 
@@ -216,7 +218,7 @@ class Api(context: Context) {
     suspend fun morningCards(): List<MorningCard> {
         val today = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul")).toString()
         val select = "id,coworker_line,stranger_line,bridge,morning_topic!inner(date,category,topic,source)"
-        val arr = JSONArray(call("GET", "/rest/v1/morning_card?select=$select&owner_id=is.null&morning_topic.date=eq.$today"))
+        val arr = JSONArray(cachedGet("/rest/v1/morning_card?select=$select&owner_id=is.null&morning_topic.date=eq.$today", "morning:$today"))
         return (0 until arr.length()).map { i ->
             val o = arr.getJSONObject(i)
             val t = o.getJSONObject("morning_topic")
@@ -269,7 +271,26 @@ class Api(context: Context) {
     private suspend fun conversation(body: JSONObject) =
         JSONObject(call("POST", "/functions/v1/conversation", body))
 
-    private suspend fun call(method: String, path: String, body: JSONObject? = null): String {
+    /**
+     * 주행 중 네트워크가 끊겨도 보이도록 마지막으로 받은 목록을 기기에 둔다 (Pleos 하드웨어 접근 정책: 캐싱·오프라인).
+     * 받기에 실패하면(네트워크 오류) 저장해 둔 값을 돌려주고, 저장된 것도 없으면 오류를 그대로 낸다.
+     */
+    private suspend fun cachedGet(path: String, cacheKey: String): String = try {
+        call("GET", path).also { cache.edit().putString(cacheKey, it).apply() }
+    } catch (e: java.io.IOException) {
+        cache.getString(cacheKey, null) ?: throw e
+    }
+
+    private suspend fun call(method: String, path: String, body: JSONObject? = null): String = try {
+        callOnce(method, path, body)
+    } catch (e: java.io.IOException) {
+        // 터널 같은 데서 잠깐 끊긴 경우를 위해 읽기 요청만 한 번 더 (쓰기는 중복될 수 있어 다시 보내지 않는다)
+        if (method != "GET") throw e
+        kotlinx.coroutines.delay(1_000)
+        callOnce(method, path, body)
+    }
+
+    private suspend fun callOnce(method: String, path: String, body: JSONObject? = null): String {
         val token = accessToken()
         return withContext(Dispatchers.IO) {
             val req = Request.Builder().url(base + path)
@@ -287,21 +308,25 @@ class Api(context: Context) {
 
     /** 익명 사용자 토큰. 없으면 만들고, 만료가 가까우면 새로 받는다 */
     private suspend fun accessToken(): String = authLock.withLock {
-        val token = prefs.getString("access", null)
+        val token = tokens.getString("access")
         val expiresAt = prefs.getLong("expiresAt", 0)
         // uid는 2026-10-23부터 저장한다. 예전 설치는 한 번 새로 받아 uid를 채운다
         if (token != null && prefs.contains("uid") && System.currentTimeMillis() < expiresAt - 60_000) return token
-        val refresh = prefs.getString("refresh", null)
+        val refresh = tokens.getString("refresh")
         val session = if (refresh != null) {
             runCatching { auth("/auth/v1/token?grant_type=refresh_token", JSONObject().put("refresh_token", refresh)) }
-                .getOrElse { auth("/auth/v1/signup", JSONObject()) }
+                .getOrElse { e ->
+                    // 네트워크가 끊긴 것이면 새 사용자로 바꾸지 않는다(이름·습관 기록이 사라지므로)
+                    if (e is java.io.IOException) throw e
+                    auth("/auth/v1/signup", JSONObject())
+                }
         } else {
             auth("/auth/v1/signup", JSONObject())
         }
+        tokens.putString("access", session.getString("access_token"))
+        tokens.putString("refresh", session.getString("refresh_token"))
         prefs.edit()
-            .putString("access", session.getString("access_token"))
             .putString("uid", session.getJSONObject("user").getString("id"))
-            .putString("refresh", session.getString("refresh_token"))
             .putLong("expiresAt", System.currentTimeMillis() + session.getLong("expires_in") * 1000)
             .apply()
         session.getString("access_token")

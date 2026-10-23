@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- debug 빌드에만 들어가는 화면. release(출품·심사 APK)에는 포함하지 않는다 (Pleos 보안 가이드: 불필요한 컴포넌트 노출 금지) -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- 음성 인식·합성 확인용. adb shell am start -n com.smalltoktok.pleos/.VoiceTestActivity -->
+        <activity
+            android:name=".VoiceTestActivity"
+            android:exported="true" />
+    </application>
+</manifest>

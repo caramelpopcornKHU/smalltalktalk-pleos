@@ -6,6 +6,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -56,6 +57,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import coil3.compose.AsyncImage
 import com.smalltoktok.pleos.data.Feedback
 import com.smalltoktok.pleos.data.Scenario
@@ -77,6 +80,13 @@ fun App(vm: TalkViewModel) {
     val profileVm: ProfileViewModel = viewModel()
     val profile by profileVm.state.collectAsStateWithLifecycle()
     val habitVm: HabitViewModel = viewModel()
+    // 다른 앱이 전체화면을 차지해 보이지 않게 되면 마이크·소리를 멈춘다 (나란히 띄운 창일 때는 계속)
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
+        vm.onBackground()
+        reflectVm.onBackground()
+        morningVm.stopBriefing()
+        habitVm.stopSpeaking()
+    }
     // 전체화면일 때 위 차량 정보 줄·아래 공조 바(시스템 바)와 겹치지 않게 안전 영역 안에만 그린다.
     // 상황판 옆 창(일부 화면)일 때는 겹치는 영역이 없어 여백이 0이 된다
     Box(Modifier.fillMaxSize().background(Palette.bg).windowInsetsPadding(WindowInsets.safeDrawing)) {
@@ -87,13 +97,12 @@ fun App(vm: TalkViewModel) {
             state.phase == Phase.Idle -> Column(Modifier.fillMaxSize()) {
                 CapsuleHeader(
                     unread = false,
-                    onBell = { extra = Extra.Notifications },
+                    onBell = null,
                     onGear = { extra = Extra.Settings },
                     initial = profile.initial,
                 )
                 Box(Modifier.weight(1f)) {
                     when (extra) {
-                        Extra.Notifications -> ComingSoon("알림", "아침 카드와 새 상대 소식이 여기에 모여요.")
                         Extra.Settings -> NameScreen(profileVm, parked, asSettings = true) { extra = null }
                         null -> when (tab) {
                             Tab.Evening -> HomeScreen(state, parked, vm)
@@ -275,6 +284,8 @@ private fun PartnerStage(
 ) {
     Box(modifier) {
         Portrait(s, vm, Modifier.fillMaxSize())
+        // 주행 중에는 사진이 시선을 끌지 않게 어둡게 (이미지는 필요한 만큼만)
+        if (!parked) Box(Modifier.fillMaxSize().background(Palette.ink.copy(alpha = 0.55f)))
         Box(
             Modifier.fillMaxSize().background(
                 Brush.verticalGradient(0.45f to Color.Transparent, 1f to Palette.ink.copy(alpha = 0.85f)),
@@ -291,7 +302,7 @@ private fun PartnerStage(
                 Phase.PartnerSpeaking ->
                     if (parked && lastPartner != null) Caption(lastPartner) else Caption("${s.whoShort}이(가) 말하고 있어요")
                 Phase.Listening -> Row(verticalAlignment = Alignment.CenterVertically) {
-                    RallyBall(listening = true, onClick = { vm.voice.stopListening() })
+                    RallyBall(listening = true, onClick = { vm.voice.stopListening() }, animate = parked)
                     Spacer(Modifier.width(20.dp))
                     Caption(partial.ifEmpty { "말씀하세요" })
                 }
@@ -346,11 +357,14 @@ private fun Script(state: TalkState, modifier: Modifier) {
 
 /** 라임 공 마이크. 듣는 동안 숨 쉬듯 커졌다 작아지고, 누르면 말 끝내기 */
 @Composable
-internal fun RallyBall(listening: Boolean, onClick: () -> Unit) {
+internal fun RallyBall(listening: Boolean, onClick: () -> Unit, animate: Boolean = true) {
+    // 주행 중에는 반복 애니메이션을 쓰지 않고(Pleos 주행 안전 가이드) 듣는 중임을 먹색 테두리로만 보여준다
     val pulse = rememberInfiniteTransition(label = "ball")
-    val s by pulse.animateFloat(1f, if (listening) 1.12f else 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "s")
+    val s by pulse.animateFloat(1f, if (listening && animate) 1.12f else 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "s")
     Box(
-        Modifier.size(88.dp).scale(s).clip(CircleShape).background(Palette.accent).clickable(onClick = onClick),
+        Modifier.size(88.dp).scale(s).clip(CircleShape)
+            .then(if (listening && !animate) Modifier.border(6.dp, Palette.ink, CircleShape) else Modifier)
+            .background(Palette.accent).clickable(onClick = onClick),
     )
 }
 

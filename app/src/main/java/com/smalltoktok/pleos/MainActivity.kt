@@ -27,7 +27,6 @@ class MainActivity : ComponentActivity() {
             Manifest.permission.RECORD_AUDIO,
             "pleos.car.permission.STT_SERVICE",
             "pleos.car.permission.TTS_SERVICE",
-            "pleos.car.permission.CAR_DRIVE",
         )
     }
 }

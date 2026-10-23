@@ -2,6 +2,7 @@ package com.smalltoktok.pleos.ui
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.smalltoktok.pleos.Services
 import com.smalltoktok.pleos.data.ReflectionResult
@@ -34,14 +35,26 @@ const val STORY_MAX = 1500
  * 라임 공을 누르고 말하면 Pleos STT가 문장마다 받아쓴다. 말을 멈추고 8초가 지나거나 공을 다시 누르면 듣기를 멈춘다.
  * 다 말한 뒤 "다 말했어요"를 눌러 한 번에 제출한다(되묻지 않는다). 결과는 정차 중에 보고, 주행 중에는 소리로 듣는다.
  */
-class ReflectViewModel(app: Application) : AndroidViewModel(app) {
+class ReflectViewModel(app: Application, private val saved: SavedStateHandle) : AndroidViewModel(app) {
     private val services = Services.get(app)
     private val api = services.api
     val voice = services.voice
 
-    private val _state = MutableStateFlow(ReflectState())
+    // 받아쓴 조각과 거리는 프로세스가 다시 만들어져도 남게 SavedStateHandle에 둔다 (Pleos: 진행 상태 복원)
+    private val _state = MutableStateFlow(
+        ReflectState(pieces = saved.get<ArrayList<String>>("pieces").orEmpty(), distance = saved.get<String>("distance")),
+    )
     val state: StateFlow<ReflectState> = _state
     private var job: Job? = null
+
+    init {
+        viewModelScope.launch {
+            _state.collect {
+                saved["pieces"] = ArrayList(it.pieces)
+                saved["distance"] = it.distance
+            }
+        }
+    }
     private var stopRequested = false
 
     fun toggleListening() {
@@ -65,6 +78,12 @@ class ReflectViewModel(app: Application) : AndroidViewModel(app) {
                 _state.update { if (it.phase == ReflectPhase.Listening) it.copy(phase = ReflectPhase.Telling) else it }
             }
         }
+    }
+
+    /** 화면에서 사라지면 듣기·읽기를 멈춘다. 받아쓴 조각은 그대로 둔다 */
+    fun onBackground() {
+        if (_state.value.phase == ReflectPhase.Listening) toggleListening()
+        voice.stopSpeaking()
     }
 
     /** 방금 말한 부분 지우기 */

@@ -100,10 +100,29 @@ class Voice(context: Context) {
         .setUsage(AudioAttributes.USAGE_ASSISTANT)
         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
         .build()
+    private var player: MediaPlayer? = null
+    private var playDone: CompletableDeferred<Boolean>? = null
+
+    /**
+     * 오디오 포커스 변화 (Pleos Audio Focus Guide): LOSS·LOSS_TRANSIENT면 바로 멈추고(길 안내·전화 등에 양보),
+     * CAN_DUCK이면 소리를 줄였다가 GAIN에서 되돌린다. 멈춘 문장은 다시 읽지 않는다.
+     */
+    private val focusListener = AudioManager.OnAudioFocusChangeListener { change ->
+        when (change) {
+            AudioManager.AUDIOFOCUS_LOSS, AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                runCatching { player?.stop() }
+                playDone?.complete(true)
+                runCatching { tts.stop() }
+                spoken?.complete(Unit)
+            }
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> runCatching { player?.setVolume(DUCK_VOLUME, DUCK_VOLUME) }
+            AudioManager.AUDIOFOCUS_GAIN -> runCatching { player?.setVolume(1f, 1f) }
+        }
+    }
     private val focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
         .setAudioAttributes(speechAttributes)
+        .setOnAudioFocusChangeListener(focusListener)
         .build()
-    private var player: MediaPlayer? = null
 
     private fun online(): Boolean {
         val cm = app.getSystemService(ConnectivityManager::class.java)
@@ -113,7 +132,8 @@ class Voice(context: Context) {
 
     /** 서버 목소리가 있으면 그걸로, 아니면 Pleos TTS로 다 읽을 때까지 기다린다 */
     suspend fun speak(text: String, audioUrl: String? = null) {
-        audioManager.requestAudioFocus(focusRequest)
+        // 포커스를 못 받으면(전화 중 등) 읽지 않는다
+        if (audioManager.requestAudioFocus(focusRequest) == AudioManager.AUDIOFOCUS_REQUEST_FAILED) return
         try {
             if (audioUrl != null && online() && playUrl(audioUrl)) return
             speakOnDevice(text)
@@ -125,6 +145,7 @@ class Voice(context: Context) {
     /** 끝까지 재생하면 true, 준비·재생에 실패하면 false (그때는 Pleos TTS로 읽는다) */
     private suspend fun playUrl(url: String): Boolean {
         val done = CompletableDeferred<Boolean>()
+        playDone = done
         val mp = MediaPlayer().apply {
             setAudioAttributes(speechAttributes)
             setOnPreparedListener { it.start() }
@@ -141,6 +162,7 @@ class Voice(context: Context) {
             false
         } finally {
             player = null
+            playDone = null
             mp.release()
         }
     }
@@ -207,5 +229,6 @@ class Voice(context: Context) {
 
     private companion object {
         const val BYTES_PER_MS = 32L
+        const val DUCK_VOLUME = 0.3f
     }
 }

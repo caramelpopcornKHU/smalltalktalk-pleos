@@ -49,6 +49,10 @@ class HabitViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun stopSpeaking() {
+        if (speech?.isActive == true) toggleSpeak(null)
+    }
+
     fun toggleSpeak(name: String?) {
         if (speech?.isActive == true) {
             speech?.cancel()

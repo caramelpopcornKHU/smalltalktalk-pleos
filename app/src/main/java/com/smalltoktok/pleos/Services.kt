@@ -4,9 +4,6 @@ import android.content.Context
 import com.smalltoktok.pleos.data.Api
 import com.smalltoktok.pleos.vehicle.Driving
 import com.smalltoktok.pleos.voice.Voice
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 
 /**
  * 앱 전체가 함께 쓰는 것들. Pleos 음성·차량 서비스 연결은 하나만 두고 탭(ViewModel)들이 나눠 쓴다.
@@ -15,7 +12,7 @@ import kotlinx.coroutines.SupervisorJob
 class Services private constructor(context: Context) {
     val api = Api(context)
     val voice = Voice(context).also { it.initialize() }
-    val driving = Driving(context).also { it.start(CoroutineScope(SupervisorJob() + Dispatchers.Main)) }
+    val driving = Driving(context).also { it.start() }
 
     companion object {
         @Volatile private var instance: Services? = null

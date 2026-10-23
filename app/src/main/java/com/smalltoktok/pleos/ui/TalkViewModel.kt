@@ -180,6 +180,15 @@ class TalkViewModel(app: Application) : AndroidViewModel(app) {
         pick?.let { start(it) }
     }
 
+    /**
+     * 앱이 화면에서 사라지면(다른 앱 전체화면 등) 마이크와 소리를 멈춘다 (Pleos 앱 구조 가이드: 백그라운드 작업 정리).
+     * 대화 중이었으면 지금까지 주고받은 것으로 코칭을 받아 두고, 돌아오면 코칭 화면을 보여준다.
+     */
+    fun onBackground() {
+        if (_state.value.phase in setOf(Phase.Starting, Phase.PartnerSpeaking, Phase.Listening, Phase.Thinking)) endNow()
+        else voice.stopSpeaking()
+    }
+
     /** 코칭의 추천 한마디 들어보기 (Pleos TTS) */
     fun say(text: String) {
         viewModelScope.launch { voice.speak(text) }
