@@ -69,15 +69,27 @@ class MorningViewModel(app: Application) : AndroidViewModel(app) {
         _state.update { it.copy(tone = tone) }
     }
 
-    fun toggleBriefing() {
+    /**
+     * 추천 3장: 날씨는 늘 첫 장, 나머지 두 장은 그날 날짜로 섞어 고른다(같은 날에는 같은 추천).
+     * 출근길이 짧을 때 듣는 용도이고, 다 듣고 싶으면 "전부 듣기".
+     */
+    fun recommended(cards: List<MorningCard>): List<MorningCard> {
+        val (weather, others) = cards.partition { it.category == "weather" }
+        val seed = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul")).toEpochDay()
+        return (weather.take(1) + others.shuffled(java.util.Random(seed))).take(RECOMMENDED)
+    }
+
+    /** all=false면 추천 3장, true면 전부. 듣는 중에 누르면 멈춘다 */
+    fun toggleBriefing(all: Boolean) {
         if (brief?.isActive == true) return stopBriefing()
         val cards = _state.value.cards
         if (cards.isEmpty()) return
+        val playlist = if (all) cards else recommended(cards)
         brief = viewModelScope.launch {
             try {
                 // 짧게: 카테고리 이름과 던지는 말만 (2026-10-23 피드백, 소재 설명·안내 문구는 장황했다)
-                cards.forEachIndexed { i, c ->
-                    _state.update { it.copy(briefing = i) }
+                playlist.forEach { c ->
+                    _state.update { it.copy(briefing = cards.indexOf(c)) }
                     val label = MORNING_CATEGORY_LABELS[c.category]?.let { "$it. " } ?: ""
                     services.voice.speak(label + c.line(_state.value.tone))
                 }
@@ -93,3 +105,5 @@ class MorningViewModel(app: Application) : AndroidViewModel(app) {
         _state.update { it.copy(briefing = null) }
     }
 }
+
+private const val RECOMMENDED = 3

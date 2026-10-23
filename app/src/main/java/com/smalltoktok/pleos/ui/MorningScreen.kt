@@ -3,6 +3,7 @@ package com.smalltoktok.pleos.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -39,8 +40,15 @@ fun MorningScreen(vm: MorningViewModel, parked: Boolean) {
             }
             else -> {
                 val briefing = state.briefing
-                BigButton(if (briefing != null) "브리핑 멈추기" else "출근길 브리핑 듣기 · ${state.cards.size}장", accent = briefing == null) {
-                    vm.toggleBriefing()
+                if (briefing != null) {
+                    BigButton("브리핑 멈추기") { vm.stopBriefing() }
+                } else {
+                    // 추천 듣기(짧은 출근길용 3장) / 전부 듣기
+                    val picks = vm.recommended(state.cards).size
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Box(Modifier.weight(1f)) { BigButton("추천 듣기 · ${picks}장", accent = true) { vm.toggleBriefing(all = false) } }
+                        Box(Modifier.weight(1f)) { BigButton("전부 듣기 · ${state.cards.size}장") { vm.toggleBriefing(all = true) } }
+                    }
                 }
                 if (briefing != null) {
                     val c = state.cards[briefing]
