@@ -44,8 +44,14 @@ class Voice(context: Context) {
     private var heard: CompletableDeferred<String>? = null
     private var speechStarted: CompletableDeferred<Unit>? = null
     private var listenStartedAt = 0L
+    /** 마이크가 실제로 열린 시각 (STT onReady). 엔진 준비 시간은 반응 시간에 넣지 않는다 */
+    private var readyAt = 0L
+    /** 첫 글자·마지막 글자가 들어온 시각 (EPD가 없을 때 쓰는 대략값) */
+    private var firstTextAt = 0L
+    private var lastTextAt = 0L
     private var speechOnMs = -1L
     private var speechOffMs = -1L
+    private var epd: CompletableDeferred<Unit>? = null
 
     private val _partial = MutableStateFlow("")
     /** 듣는 동안 화면에 보여줄 중간 결과 */
@@ -58,20 +64,27 @@ class Voice(context: Context) {
         stt.addListener(object : ResultListener {
             override fun onUpdated(text: String, isFinal: Boolean) {
                 _partial.value = text
-                if (text.isNotBlank()) speechStarted?.complete(Unit)
+                if (text.isNotBlank()) {
+                    val now = System.currentTimeMillis()
+                    if (firstTextAt == 0L) firstTextAt = now
+                    lastTextAt = now
+                    speechStarted?.complete(Unit)
+                }
                 if (isFinal) heard?.complete(text)
             }
             override fun onUpdatedEpdData(on: Long, off: Long) {
                 // EPD 값은 마이크를 연 뒤부터 쌓인 오디오 바이트로 보인다(16kHz·16bit = 1초 32000).
-                // 에뮬레이터 로그의 타임스탬프와 맞춰 본 추정이라 실제 차량에서 다시 확인한다
+                // 에뮬레이터 로그의 타임스탬프와 맞춰 본 추정이라 listen()에서 첫 글자 시각과 맞는지 검사해 쓴다.
+                // 주의: SDK는 최종 결과를 먼저 주고 이 값을 뒤에 준다
                 speechOnMs = on / BYTES_PER_MS
                 speechOffMs = off / BYTES_PER_MS
+                epd?.complete(Unit)
             }
             override fun onStartedRecognition() = Unit
             override fun onEndedRecognition() { _listening.value = false }
             // 오류가 나도 그때까지 받아쓴 말은 버리지 않는다
             override fun onError(type: SttError) { heard?.complete(_partial.value) }
-            override fun onReady() = Unit
+            override fun onReady() { if (readyAt == 0L) readyAt = System.currentTimeMillis() }
             override fun onUpdatedRms(rms: Double) = Unit
         })
         stt.initialize(object : SttInit {
@@ -191,6 +204,11 @@ class Voice(context: Context) {
         _partial.value = ""
         speechOnMs = -1
         speechOffMs = -1
+        readyAt = 0
+        firstTextAt = 0
+        lastTextAt = 0
+        val epdArrived = CompletableDeferred<Unit>()
+        epd = epdArrived
         listenStartedAt = System.currentTimeMillis()
         _listening.value = true
         stt.request()
@@ -207,9 +225,34 @@ class Voice(context: Context) {
             withTimeoutOrNull(maxSpeechMs) { result.await() } ?: run { stt.stop(); _partial.value }
         }
         _listening.value = false
-        val delay = if (speechOnMs >= 0) speechOnMs else System.currentTimeMillis() - listenStartedAt
-        val speaking = if (speechOnMs >= 0 && speechOffMs > speechOnMs) speechOffMs - speechOnMs else 0
+        if (text.isBlank()) return Heard("", 0, 0)
+        // 말 시작·끝 시점(EPD)은 최종 결과 뒤에 오므로 잠깐 기다린다
+        withTimeoutOrNull(EPD_WAIT_MS) { epdArrived.await() }
+        val (delay, speaking) = timing()
         return Heard(text.trim(), delay, speaking)
+    }
+
+    /**
+     * 반응 시간 = 마이크가 열린 뒤 말을 시작하기까지 (2026-10-23 수정).
+     * 처음에는 EPD가 오기 전에 계산해 "듣기 요청 ~ 인식 끝" 전체(엔진 준비·말한 시간·인식 지연)를 반응 시간으로 잡아
+     * 8초 넘게 나왔다. 이제 EPD를 기다려 쓰고, EPD가 없거나 단위가 맞지 않으면 첫 글자가 들어온 시각으로 어림한다.
+     * 첫 글자는 실제 말 시작보다 인식 지연만큼 늦게 오므로, EPD 값이 그보다 크면 EPD를 믿지 않는다.
+     */
+    private fun timing(): Pair<Long, Long> {
+        val opened = if (readyAt > 0) readyAt else listenStartedAt
+        val byText = if (firstTextAt > 0) (firstTextAt - opened - TEXT_LAG_MS).coerceAtLeast(0) else null
+        val epdOk = speechOnMs >= 0 && (byText == null || speechOnMs <= byText + TEXT_LAG_MS)
+        val delay = when {
+            epdOk -> speechOnMs
+            byText != null -> byText
+            else -> 0
+        }
+        val speaking = when {
+            epdOk && speechOffMs > speechOnMs -> speechOffMs - speechOnMs
+            firstTextAt > 0 && lastTextAt > firstTextAt -> lastTextAt - firstTextAt
+            else -> 0
+        }
+        return delay to speaking
     }
 
     fun stopListening() {
@@ -229,6 +272,10 @@ class Voice(context: Context) {
 
     private companion object {
         const val BYTES_PER_MS = 32L
+        /** 최종 결과 뒤 EPD를 기다리는 시간 */
+        const val EPD_WAIT_MS = 600L
+        /** 말을 시작하고 첫 글자가 화면에 오기까지 걸리는 대략의 인식 지연 */
+        const val TEXT_LAG_MS = 500L
         const val DUCK_VOLUME = 0.3f
     }
 }
