@@ -104,21 +104,24 @@ class VoiceTestActivity : AppCompatActivity() {
     }
 
     private fun initTts() {
-        tts?.release()
+        safely("TTS 이전 해제") { tts?.release() }
         val t = TextToSpeech(applicationContext, TtsMode.ON_DEVICE)
         tts = t
-        t.addEventListener(object : EventListener {
-            override fun onStart() = line("TTS 시작")
-            override fun onReady() = line("TTS 준비")
-            override fun onDone() = line("TTS 끝")
-            override fun onError(type: TtsError) = line("TTS 오류: $type")
-            override fun onStop() = line("TTS 멈춤")
-            override fun onUpdatedRms(rms: Double) = Unit
-        })
+        // STT와 달리 TTS는 initialize 전에 리스너를 붙이면 SDK 내부 객체가 없어 예외가 난다
         t.initialize(object : TtsInit {
             override fun onSuccess() {
                 line("TTS 초기화 성공")
-                t.setLocale(Locale.KOREA)
+                safely("TTS 설정") {
+                    t.addEventListener(object : EventListener {
+                        override fun onStart() = line("TTS 시작")
+                        override fun onReady() = line("TTS 준비")
+                        override fun onDone() = line("TTS 끝")
+                        override fun onError(type: TtsError) = line("TTS 오류: $type")
+                        override fun onStop() = line("TTS 멈춤")
+                        override fun onUpdatedRms(rms: Double) = Unit
+                    })
+                    t.setLocale(Locale.KOREA)
+                }
             }
             override fun onFailure(type: TtsError) = line("TTS 초기화 실패: $type")
         })

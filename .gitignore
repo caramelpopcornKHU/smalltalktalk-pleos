@@ -20,3 +20,6 @@ local.properties
 keystore.properties
 secrets.properties
 .env
+
+# Android Studio에서 내보낸 로그
+*.logcat
