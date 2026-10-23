@@ -56,7 +56,7 @@ class ReflectViewModel(app: Application) : AndroidViewModel(app) {
         job = viewModelScope.launch {
             try {
                 while (true) {
-                    val heard = voice.listen(timeoutMs = SILENCE_STOP_MS)
+                    val heard = voice.listen(startTimeoutMs = SILENCE_STOP_MS)
                     if (heard.text.isNotEmpty()) _state.update { it.copy(pieces = it.pieces + heard.text) }
                     if (heard.text.isEmpty() || stopRequested) break
                     if (_state.value.story.length >= STORY_MAX) break

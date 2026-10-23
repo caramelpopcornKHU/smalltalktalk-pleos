@@ -42,6 +42,7 @@ class Voice(context: Context) {
     private var ttsReady = CompletableDeferred<Boolean>()
     private var spoken: CompletableDeferred<Unit>? = null
     private var heard: CompletableDeferred<String>? = null
+    private var speechStarted: CompletableDeferred<Unit>? = null
     private var listenStartedAt = 0L
     private var speechOnMs = -1L
     private var speechOffMs = -1L
@@ -57,6 +58,7 @@ class Voice(context: Context) {
         stt.addListener(object : ResultListener {
             override fun onUpdated(text: String, isFinal: Boolean) {
                 _partial.value = text
+                if (text.isNotBlank()) speechStarted?.complete(Unit)
                 if (isFinal) heard?.complete(text)
             }
             override fun onUpdatedEpdData(on: Long, off: Long) {
@@ -67,7 +69,8 @@ class Voice(context: Context) {
             }
             override fun onStartedRecognition() = Unit
             override fun onEndedRecognition() { _listening.value = false }
-            override fun onError(type: SttError) { heard?.complete("") }
+            // 오류가 나도 그때까지 받아쓴 말은 버리지 않는다
+            override fun onError(type: SttError) { heard?.complete(_partial.value) }
             override fun onReady() = Unit
             override fun onUpdatedRms(rms: Double) = Unit
         })
@@ -152,17 +155,35 @@ class Voice(context: Context) {
         withTimeoutOrNull(1_500L + text.length * 250L) { done.await() }
     }
 
-    /** 한 번 듣는다. 말이 끝나면(EPD) SDK가 최종 결과를 준다 */
-    suspend fun listen(timeoutMs: Long = 20_000): Heard {
+    /**
+     * 한 문장을 듣는다. 말이 끝나면(EPD) SDK가 최종 결과를 준다.
+     * startTimeoutMs: 이 시간 안에 말을 시작하지 않으면 그만 듣는다(빈 결과).
+     * 말을 시작한 뒤에는 길게 말해도 끊지 않는다. maxSpeechMs를 넘기면 그때까지 받아쓴 말을 돌려준다.
+     * (2026-10-23 수정: 처음에는 전체 시간에 제한을 걸어, 길게 다다다 말하면 문장이 통째로 버려졌다)
+     */
+    suspend fun listen(startTimeoutMs: Long = 20_000, maxSpeechMs: Long = 120_000): Heard {
         val result = CompletableDeferred<String>()
+        val started = CompletableDeferred<Unit>()
         heard = result
+        speechStarted = started
         _partial.value = ""
         speechOnMs = -1
         speechOffMs = -1
         listenStartedAt = System.currentTimeMillis()
         _listening.value = true
         stt.request()
-        val text = withTimeoutOrNull(timeoutMs) { result.await() } ?: run { stt.stop(); "" }
+        val begun = withTimeoutOrNull(startTimeoutMs) {
+            kotlinx.coroutines.selects.select<Unit> {
+                started.onAwait { }
+                result.onAwait { }
+            }
+        } != null
+        val text = if (!begun) {
+            stt.stop()
+            ""
+        } else {
+            withTimeoutOrNull(maxSpeechMs) { result.await() } ?: run { stt.stop(); _partial.value }
+        }
         _listening.value = false
         val delay = if (speechOnMs >= 0) speechOnMs else System.currentTimeMillis() - listenStartedAt
         val speaking = if (speechOnMs >= 0 && speechOffMs > speechOnMs) speechOffMs - speechOnMs else 0

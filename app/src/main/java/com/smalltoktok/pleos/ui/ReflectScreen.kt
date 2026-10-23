@@ -56,34 +56,49 @@ fun ReflectScreen(vm: ReflectViewModel, parked: Boolean, onPractice: (Scenario) 
     }
 }
 
+/**
+ * 상황 말하기 → (제출 | 추가 상황 말하기). 2026-10-23 사용자 피드백으로 단계를 나눴다:
+ * 한 번에 다 말하지 못해도, 말을 멈춘 뒤 "추가 상황 말하기"로 이어 붙이고 마지막에 한 번 제출한다.
+ */
 @Composable
 private fun Telling(state: ReflectState, partial: String, parked: Boolean, vm: ReflectViewModel) {
     val listening = state.phase == ReflectPhase.Listening
-    Text("어떤 대화가 아쉬웠나요?", style = MaterialTheme.typography.headlineMedium)
+    val first = state.pieces.isEmpty()
+    Text(if (first) "어떤 대화가 아쉬웠나요?" else "더 하고 싶은 말이 있나요?", style = MaterialTheme.typography.headlineMedium)
     Text(
-        "누구와, 어디서, 무슨 말이 오갔는지 편하게 말해 주세요. 다 말하면 아래 버튼을 눌러요.",
+        if (first) "누구와, 어디서, 무슨 말이 오갔는지 편하게 말해 주세요. 길게 말해도 괜찮아요."
+        else "빠진 상황이나 그때 마음을 더 말해도 되고, 이대로 제출해도 돼요.",
         style = MaterialTheme.typography.bodyLarge, color = Palette.muted,
     )
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        RallyBall(listening = listening, onClick = { vm.toggleListening() })
-        Spacer(Modifier.width(24.dp))
-        Text(
-            when {
-                listening && parked && partial.isNotEmpty() -> partial
-                listening -> "듣고 있어요. 다 말하면 공을 눌러요"
-                state.pieces.isEmpty() -> "공을 누르고 말해 보세요"
-                else -> "이어서 말하려면 공을 눌러요"
-            },
-            style = MaterialTheme.typography.titleLarge,
-        )
+    if (!first) {
+        if (parked) Script(state.pieces) else Text("지금까지 ${state.pieces.size}문장 들었어요", style = MaterialTheme.typography.titleLarge)
     }
-    if (state.pieces.isNotEmpty()) {
-        if (parked) Script(state.pieces) else Text("${state.pieces.size}문장 들었어요", style = MaterialTheme.typography.titleLarge)
+    if (listening || first) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RallyBall(listening = listening, onClick = { vm.toggleListening() })
+            Spacer(Modifier.width(24.dp))
+            Text(
+                when {
+                    listening && parked && partial.isNotEmpty() -> partial
+                    listening -> "듣고 있어요. 다 말했으면 공을 눌러요"
+                    else -> "공을 누르고 상황을 말해 보세요"
+                },
+                style = MaterialTheme.typography.titleLarge,
+            )
+        }
+    } else {
+        // 한 번 말하고 멈춘 뒤: 제출하거나, 상황을 더 말하거나
+        if (state.canSubmit) {
+            BigButton("다 말했어요, 제출하기", accent = true) { vm.submit() }
+        } else {
+            Text("조금만 더 말해 주세요. 열 글자 이상이면 제출할 수 있어요.", style = MaterialTheme.typography.bodyLarge, color = Palette.muted)
+        }
+        BigButton("추가 상황 말하기") { vm.toggleListening() }
         OutlinedButton(onClick = { vm.undoLast() }, modifier = Modifier.height(64.dp)) {
             Text("방금 말한 부분 지우기", style = MaterialTheme.typography.labelLarge)
         }
     }
-    if (parked) {
+    if (parked && !listening) {
         Text("상대와의 거리 (골라도 되고 안 골라도 돼요)", style = MaterialTheme.typography.bodyLarge, color = Palette.muted)
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             DISTANCES.forEach { (slug, label) ->
@@ -92,11 +107,6 @@ private fun Telling(state: ReflectState, partial: String, parked: Boolean, vm: R
         }
     }
     state.error?.let { Text(it, style = MaterialTheme.typography.bodyLarge, color = Palette.ink) }
-    if (state.canSubmit) {
-        BigButton("다 말했어요, 연습 만들기", accent = true) { vm.submit() }
-    } else if (state.pieces.isNotEmpty()) {
-        Text("조금만 더 말해 주세요.", style = MaterialTheme.typography.bodyLarge, color = Palette.muted)
-    }
 }
 
 @Composable
