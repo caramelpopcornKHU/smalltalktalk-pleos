@@ -29,6 +29,8 @@ val MORNING_CATEGORY_LABELS = mapOf(
     "season" to "계절",
     "food" to "점심·제철 음식",
     "outing" to "나들이·축제",
+    "culture" to "전시·공연",
+    "fuel" to "기름값",
     "movie-drama" to "영화·드라마",
     "kpop" to "K-pop",
     "issue" to "어제의 이슈",
