@@ -24,7 +24,9 @@ data class MorningState(
     /** 스몰토크 잘하는 법 영상·글 (2026-10-23) */
     val tips: List<Tip> = emptyList(),
     val filter: FeedFilter = FeedFilter.All,
-    /** 열어 둔 영상(앱 안 플레이어) 또는 글(읽어주기) */
+    /** 영상 카드를 눌렀는데 유튜브 앱이 없을 때 설치 안내를 띄운다 (Pleos에는 기본으로 없다) */
+    val youtubeMissing: Boolean = false,
+    /** 열어 둔 글(읽어주기) */
     val openTip: Tip? = null,
     /** 글을 읽는 중이면 지금 읽는 문단 번호 */
     val readingParagraph: Int? = null,
@@ -110,12 +112,14 @@ class MorningViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setFilter(f: FeedFilter) = _state.update { it.copy(filter = f) }
 
-    /** 영상은 정차 중에만 연다(Pleos: 주행 중 동영상 금지). 글은 열자마자 읽기 시작 */
+    /** 글을 열자마자 읽기 시작 (영상은 화면에서 유튜브 앱으로 바로 연다) */
     fun open(tip: Tip) {
         stopBriefing()
         _state.update { it.copy(openTip = tip, readingParagraph = null) }
-        if (!tip.isVideo) readArticle(tip)
+        readArticle(tip)
     }
+
+    fun showYoutubeMissing(show: Boolean) = _state.update { it.copy(youtubeMissing = show) }
 
     fun close() {
         brief?.cancel()

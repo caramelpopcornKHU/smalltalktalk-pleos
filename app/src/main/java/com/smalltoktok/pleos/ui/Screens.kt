@@ -85,7 +85,6 @@ fun App(vm: TalkViewModel) {
         vm.onBackground()
         reflectVm.onBackground()
         morningVm.stopBriefing()
-        if (morningVm.state.value.openTip?.isVideo == true) morningVm.close()
         habitVm.stopSpeaking()
     }
     // 전체화면일 때 위 차량 정보 줄·아래 공조 바(시스템 바)와 겹치지 않게 안전 영역 안에만 그린다.

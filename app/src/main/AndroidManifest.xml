@@ -9,7 +9,8 @@
     <uses-permission android:name="pleos.car.permission.STT_SERVICE" />
     <uses-permission android:name="pleos.car.permission.TTS_SERVICE" />
 
-    <!-- 영상을 다른 앱(유튜브·브라우저)으로 열 수 있는지 확인하려면 필요 (Android 11+ 패키지 공개 범위) -->
+    <!-- 영상을 유튜브 앱(또는 브라우저)으로 열 수 있는지 확인하려면 필요 (Android 11+ 패키지 공개 범위).
+         열 앱이 없으면(Pleos) 유튜브 설치 안내를 띄운다 -->
     <queries>
         <intent>
             <action android:name="android.intent.action.VIEW" />

@@ -1,9 +1,8 @@
 package com.smalltoktok.pleos.ui
 
-import android.annotation.SuppressLint
-import android.webkit.WebResourceRequest
-import android.webkit.WebView
-import android.webkit.WebViewClient
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,8 +24,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,7 +33,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
 import coil3.compose.AsyncImage
 import com.smalltoktok.pleos.data.Tip
 import com.smalltoktok.pleos.ui.theme.Palette
@@ -108,66 +103,13 @@ fun ArticleTipCard(tip: Tip, onOpen: () -> Unit) {
 }
 
 /**
- * 앱 안 유튜브 플레이어 (공식 임베드). 정차 중에만 열리고, 주행으로 바뀌면 MorningScreen이 닫는다.
- * Pleos 보안 가이드: WebView는 필요한 범위만 — 유튜브 임베드 밖으로 이동하지 않게 막는다.
- * 유튜브 임베드는 출처(Referer)가 없으면 재생을 거부해서, 앱 주소를 기준 URL로 둔 HTML로 띄운다.
+ * 영상은 유튜브 앱으로 연다 (2026-10-24). 앱 안 WebView 임베드는 Pleos 에뮬레이터에서 소리만 나고 화면이 검었다
+ * (하드웨어 VP9 디코더 출력이 그려지지 않음, 렌더러 4가지 모두). Pleos에는 유튜브 앱이 기본으로 없어서, 누르면 설치 안내를 띄운다.
  */
-@SuppressLint("SetJavaScriptEnabled")
-@Composable
-fun VideoPlayer(tip: Tip, onClose: () -> Unit) {
-    val id = tip.youtubeId ?: return
-    Column(Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(tip.title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(tip.channel.orEmpty(), style = MaterialTheme.typography.bodyLarge, color = Palette.muted)
-            }
-            // 앱 안 플레이어 화면이 나오지 않는 기기(GPU 제약 에뮬레이터 등)를 위한 대안. 열 수 있는 앱이 있을 때만 보인다
-            val context = androidx.compose.ui.platform.LocalContext.current
-            val external = remember(id) {
-                android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://www.youtube.com/watch?v=$id"))
-            }
-            if (external.resolveActivity(context.packageManager) != null) {
-                androidx.compose.material3.TextButton(onClick = { context.startActivity(external); onClose() }) {
-                    Text("다른 앱으로 열기", style = MaterialTheme.typography.labelLarge, color = Palette.muted)
-                }
-            }
-            OutlinedButton(onClick = onClose, modifier = Modifier.height(64.dp)) { Text("닫기", style = MaterialTheme.typography.labelLarge) }
-        }
-        Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.TopCenter) {
-            val html = """
-                <!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1">
-                <style>html,body{margin:0;height:100%;background:#0E0F0C}iframe{border:0;width:100%;height:100%}</style></head>
-                <body><iframe src="https://www.youtube.com/embed/$id?autoplay=1&playsinline=1&rel=0&modestbranding=1"
-                allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe></body></html>
-            """.trimIndent()
-            var web: WebView? = null
-            // 주의: 여기에 clip(둥근 모서리)을 걸면 WebView의 동영상 면이 합성되지 않아 소리만 나고 화면이 검다 (2026-10-23)
-            AndroidView(
-                modifier = Modifier.widthIn(max = 1200.dp).fillMaxWidth().aspectRatio(16f / 9f),
-                factory = { ctx ->
-                    WebView(ctx).apply {
-                        setBackgroundColor(android.graphics.Color.BLACK)
-                        settings.javaScriptEnabled = true
-                        settings.mediaPlaybackRequiresUserGesture = false
-                        settings.allowFileAccess = false
-                        webViewClient = object : WebViewClient() {
-                            // 임베드 안의 링크(유튜브로 이동 등)는 따라가지 않는다
-                            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest) = true
-                        }
-                        loadDataWithBaseURL("https://smalltoktok.app/", html, "text/html", "utf-8", null)
-                        web = this
-                    }
-                },
-            )
-            DisposableEffect(Unit) {
-                onDispose {
-                    web?.apply { loadUrl("about:blank"); stopLoading(); destroy() }
-                }
-            }
-        }
-    }
-}
+fun youtubeIntent(id: String) = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/watch?v=$id"))
+
+/** 유튜브 링크를 받을 앱(유튜브·브라우저)이 있는지. 매니페스트 <queries>가 있어야 Android 11+에서 보인다 */
+fun canOpenYoutube(context: Context) = youtubeIntent("SORuOd0i1hA").resolveActivity(context.packageManager) != null
 
 /** 읽어주는 글: 제목과 본문, 지금 읽는 문단을 라임으로 표시. 주행 중에는 본문 대신 제목과 읽기 버튼만 */
 @Composable

@@ -12,7 +12,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -32,14 +35,22 @@ import com.smalltoktok.pleos.ui.theme.Palette
 @Composable
 fun MorningScreen(vm: MorningViewModel, parked: Boolean) {
     val state by vm.state.collectAsStateWithLifecycle()
-    // 열어 둔 영상·글 화면. 영상은 주행으로 바뀌면 바로 닫는다 (Pleos: 주행 규제 중 영상 재생 금지)
+    val context = LocalContext.current
+    if (state.youtubeMissing) {
+        AlertDialog(
+            onDismissRequest = { vm.showYoutubeMissing(false) },
+            title = { Text("유튜브 앱이 없어요", style = MaterialTheme.typography.headlineMedium) },
+            text = { Text("영상은 유튜브 앱에서 열려요. 차량에 유튜브 앱을 설치한 뒤 다시 눌러 주세요.", style = MaterialTheme.typography.bodyLarge) },
+            confirmButton = {
+                TextButton(onClick = { vm.showYoutubeMissing(false) }, modifier = Modifier.height(64.dp)) {
+                    Text("확인", style = MaterialTheme.typography.labelLarge)
+                }
+            },
+        )
+    }
+    // 열어 둔 글(읽어주기) 화면
     state.openTip?.let { tip ->
-        if (tip.isVideo) {
-            LaunchedEffect(parked) { if (!parked) vm.close() }
-            if (parked) VideoPlayer(tip, onClose = { vm.close() })
-        } else {
-            ArticleReader(tip, state.readingParagraph, parked, onRead = { vm.readArticle(tip) }, onStop = { vm.stopReading() }, onClose = { vm.close() })
-        }
+        ArticleReader(tip, state.readingParagraph, parked, onRead = { vm.readArticle(tip) }, onStop = { vm.stopReading() }, onClose = { vm.close() })
         return
     }
     Column(Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
@@ -89,7 +100,13 @@ fun MorningScreen(vm: MorningViewModel, parked: Boolean) {
                             when (item) {
                                 is FeedItem.Topic -> MorningCardView(item.card, state.tone, reading = item.card.id == readingId)
                                 is FeedItem.TipItem ->
-                                    if (item.tip.isVideo) VideoTipCard(item.tip, parked) { vm.open(item.tip) }
+                                    if (item.tip.isVideo) VideoTipCard(item.tip, parked) {
+                                        vm.stopBriefing()
+                                        // 누를 때마다 확인한다 (안내를 보고 유튜브를 설치한 뒤 다시 누르면 바로 열린다)
+                                        val id = item.tip.youtubeId
+                                        if (id != null && canOpenYoutube(context)) context.startActivity(youtubeIntent(id))
+                                        else vm.showYoutubeMissing(true)
+                                    }
                                     else ArticleTipCard(item.tip) { vm.open(item.tip) }
                             }
                         }
