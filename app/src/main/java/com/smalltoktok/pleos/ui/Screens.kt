@@ -336,7 +336,7 @@ private fun DrivingHome(s: Scenario, state: TalkState, vm: TalkViewModel, modifi
  * large: 주행 중 화면용 88dp (흔들리는 차 안에서도 한 번에 누르게, Pleos 가이드 72~88dp)
  */
 @Composable
-private fun <T> Segmented(options: List<Pair<T, String>>, current: T, large: Boolean = false, onChange: (T) -> Unit) {
+internal fun <T> Segmented(options: List<Pair<T, String>>, current: T, large: Boolean = false, onChange: (T) -> Unit) {
     val height = if (large) 88.dp else 56.dp
     Row(
         Modifier.widthIn(max = if (large) 720.dp else 420.dp).fillMaxWidth().height(height).clip(RoundedCornerShape(height / 2))

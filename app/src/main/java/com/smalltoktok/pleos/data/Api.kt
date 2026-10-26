@@ -129,9 +129,17 @@ data class MorningCard(
     val topic: String,
     val coworkerLine: String,
     val strangerLine: String,
+    /** 상대가 짧게 받을 때 붙이는 내 디테일 */
     val bridge: String,
     val sourceName: String?,
-)
+    /** 소재 명사구 (2026-10-26 형식, 그 전 카드는 null) */
+    val hook: String? = null,
+    /** 상대가 이야기를 꺼낼 때의 점프 포인트 질문 */
+    val ifOpen: String? = null,
+) {
+    /** 카드 앞면·브리핑에 쓰는 소재. 예전 카드는 사실 요약(topic)으로 */
+    val shownHook get() = hook ?: topic
+}
 data class Feedback(
     val highlight: String?,
     val highlightReason: String?,
@@ -321,7 +329,7 @@ class Api(context: Context) {
 
     suspend fun morningCards(): List<MorningCard> {
         val today = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul")).toString()
-        val select = "id,coworker_line,stranger_line,bridge,morning_topic!inner(date,category,topic,source)"
+        val select = "id,coworker_line,stranger_line,bridge,hook,if_open,morning_topic!inner(date,category,topic,source)"
         val arr = JSONArray(cachedGet("/rest/v1/morning_card?select=$select&owner_id=is.null&morning_topic.date=eq.$today", "morning:$today"))
         return (0 until arr.length()).map { i ->
             val o = arr.getJSONObject(i)
@@ -334,6 +342,8 @@ class Api(context: Context) {
                 strangerLine = o.getString("stranger_line"),
                 bridge = o.getString("bridge"),
                 sourceName = t.optJSONObject("source")?.optStringOrNull("name"),
+                hook = o.optStringOrNull("hook"),
+                ifOpen = o.optStringOrNull("if_open"),
             )
         }.sortedBy { MORNING_ORDER.indexOf(it.category).let { i -> if (i < 0) 99 else i } }
     }
