@@ -25,6 +25,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -156,7 +158,7 @@ private fun HomeScreen(state: TalkState, parked: Boolean, vm: TalkViewModel) {
                 BigButton("다시 불러오기") { vm.loadScenarios() }
             }
             // 주행 중: 오늘의 상대 사진과 큰 시작 버튼만 (목록을 읽고 고르는 일은 정차 중에)
-            !parked -> state.today?.let { TodayPartner(it, parked = false, state.casual, vm, Modifier.weight(1f)) }
+            !parked -> state.today?.let { TodayPartner(it, parked = false, state, vm, Modifier.weight(1f)) }
             else -> BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                 // 2026-10-23 시안(docs/prototypes/today-partner.html): 넓은 창은 왼쪽 큰 세로 카드(바로 시작하기·다른 사람)
                 // + 오른쪽 사진 카드 목록, 좁은 창은 A안(세로 카드 위, 목록 아래). 사진을 세로 그대로 써서 얼굴이 잘리지 않게.
@@ -164,7 +166,7 @@ private fun HomeScreen(state: TalkState, parked: Boolean, vm: TalkViewModel) {
                 if (maxWidth > WIDE_HOME) {
                     Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                         state.today?.let { t ->
-                            TodayPartner(t, parked = true, state.casual, vm, Modifier.fillMaxHeight().padding(bottom = 8.dp).aspectRatio(3f / 4f))
+                            TodayPartner(t, parked = true, state, vm, Modifier.fillMaxHeight().padding(bottom = 8.dp).aspectRatio(3f / 4f))
                         }
                         ScenarioGrid(state, vm, Modifier.weight(1f).fillMaxHeight(), today = null)
                     }
@@ -189,19 +191,14 @@ private fun ScenarioGrid(state: TalkState, vm: TalkViewModel, modifier: Modifier
 ) {
     today?.let { t ->
         item(key = "today", span = { GridItemSpan(maxLineSpan) }) {
-            TodayPartner(t, parked = true, state.casual, vm, Modifier.fillMaxWidth().aspectRatio(3f / 3.2f))
+            TodayPartner(t, parked = true, state, vm, Modifier.fillMaxWidth().aspectRatio(3f / 3.2f))
         }
     }
-    item(span = { GridItemSpan(maxLineSpan) }) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.weight(1f)) { Section("누구와, 어떤 자리에서?") }
-            Chip("반말로 연습", state.casual, bordered = true) { vm.setCasual(!state.casual) }
-        }
-    }
-    items(state.shared, key = { it.id }) { ScenarioCard(it, state.rallies[it.id], vm) }
+    item(span = { GridItemSpan(maxLineSpan) }) { Section("누구와, 어떤 자리에서?") }
+    items(state.shared, key = { it.id }) { ScenarioCard(it, state.rallies[it.id], it.casual(state.casual), vm) }
     if (state.mine.isNotEmpty()) {
         item(span = { GridItemSpan(maxLineSpan) }) { Section("내 이야기로 만든 연습") }
-        items(state.mine, key = { it.id }) { ScenarioCard(it, state.rallies[it.id], vm) }
+        items(state.mine, key = { it.id }) { ScenarioCard(it, state.rallies[it.id], it.casual(state.casual), vm) }
     }
     item(span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(8.dp)) }
 }
@@ -210,10 +207,12 @@ private fun ScenarioGrid(state: TalkState, vm: TalkViewModel, modifier: Modifier
 /**
  * 오늘의 상대 (폰 앱 2026-10-22): 큰 사진 + 상황·첫 마디 미리 보기 + 바로 시작하기 / 다른 사람.
  * 사진 어디를 눌러도 시작한다. 첫 마디 글은 정차 중에만 보여준다.
- * 오른쪽 위 "반말로 연습"(2026-10-26)을 켜면 상대가 말 놓은 사이로 반말을 쓴다. 주행 중에도 누를 수 있게 크게 둔다.
+ * 시작 버튼 바로 위 존댓말 | 반말 스위치(2026-10-26 UX 검토): 말투는 "어떻게 시작할지"라 시작 버튼 옆에 둔다.
+ * 처음엔 작은 칩(카드 오른쪽 위)이었는데 있는지도 모르겠다는 피드백. 바꾸면 첫 마디 미리 보기도 바로 바뀐다.
  */
 @Composable
-private fun TodayPartner(s: Scenario, parked: Boolean, casual: Boolean, vm: TalkViewModel, modifier: Modifier) {
+private fun TodayPartner(s: Scenario, parked: Boolean, state: TalkState, vm: TalkViewModel, modifier: Modifier) {
+    val casual = s.casual(state.casual)
     Box(modifier.clip(RoundedCornerShape(28.dp)).clickable { vm.start(s) }) {
         Portrait(s, vm, Modifier.fillMaxSize())
         Box(
@@ -227,15 +226,6 @@ private fun TodayPartner(s: Scenario, parked: Boolean, casual: Boolean, vm: Talk
             color = Palette.onAccent,
             modifier = Modifier.padding(24.dp).clip(CircleShape).background(Palette.accent).padding(horizontal = 18.dp, vertical = 10.dp),
         )
-        Text(
-            if (casual) "반말로 연습 ✓" else "반말로 연습",
-            style = MaterialTheme.typography.labelLarge,
-            color = if (casual) Palette.onAccent else Palette.surface,
-            modifier = Modifier.align(Alignment.TopEnd).padding(24.dp).clip(CircleShape)
-                .background(if (casual) Palette.accent else Palette.ink.copy(alpha = 0.55f))
-                .clickable { vm.setCasual(!casual) }
-                .padding(horizontal = 18.dp, vertical = 10.dp),
-        )
         Column(
             Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(28.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -248,6 +238,14 @@ private fun TodayPartner(s: Scenario, parked: Boolean, casual: Boolean, vm: Talk
                 }
             }
             Spacer(Modifier.height(8.dp))
+            // 내 이야기로 만든 연습은 말투가 정해져 있어 스위치 대신 그대로 둔다
+            if (!s.mine) {
+                if (!state.speechHintSeen) {
+                    Text("반말: 말 놓은 또래처럼 대화해요", style = MaterialTheme.typography.bodyLarge, color = Palette.surface.copy(alpha = 0.85f))
+                }
+                SpeechSwitch(casual) { vm.setCasual(it, announce = !parked) }
+                Spacer(Modifier.height(4.dp))
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(
                     onClick = { vm.start(s) },
@@ -266,12 +264,51 @@ private fun TodayPartner(s: Scenario, parked: Boolean, casual: Boolean, vm: Talk
     }
 }
 
+/**
+ * 존댓말 | 반말 두 칸 스위치. 늘 하나가 선택돼 있어 지금 말투가 보인다.
+ * 라임은 "바로 시작하기"에만 쓰고, 선택된 칸은 흰 바탕 + 먹색 글자(주 버튼이 둘처럼 보이지 않게).
+ * 칸을 누르면 그 칸이 탭을 받으므로 카드 전체의 "눌러서 시작"이 같이 실행되지 않는다.
+ */
+@Composable
+private fun SpeechSwitch(casual: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        Modifier.widthIn(max = 360.dp).fillMaxWidth().height(64.dp).clip(RoundedCornerShape(32.dp))
+            .background(Palette.ink.copy(alpha = 0.55f)).padding(4.dp),
+    ) {
+        listOf(false to "존댓말", true to "반말").forEach { (value, label) ->
+            val selected = casual == value
+            Box(
+                Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(28.dp))
+                    .background(if (selected) Palette.surface else Color.Transparent)
+                    .clickable { onChange(value) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    if (selected) "✓ $label" else label,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = if (selected) Palette.ink else Palette.surface.copy(alpha = 0.7f),
+                )
+            }
+        }
+    }
+}
+
+/** "반말" 작은 표시 (먹색 테두리). 상황 카드와 대화 화면에서 쓴다 */
+@Composable
+private fun SpeechTag(onDark: Boolean = false) = Text(
+    "반말",
+    style = MaterialTheme.typography.labelLarge,
+    color = if (onDark) Palette.surface else Palette.ink,
+    modifier = Modifier.border(2.dp, if (onDark) Palette.surface else Palette.ink, CircleShape)
+        .padding(horizontal = 12.dp, vertical = 4.dp),
+)
+
 @Composable
 private fun Section(text: String) =
     Text(text, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 8.dp))
 
 @Composable
-private fun ScenarioCard(s: Scenario, rally: Int?, vm: TalkViewModel) {
+private fun ScenarioCard(s: Scenario, rally: Int?, casual: Boolean, vm: TalkViewModel) {
     Column(
         Modifier
             .clip(RoundedCornerShape(24.dp))
@@ -281,7 +318,15 @@ private fun ScenarioCard(s: Scenario, rally: Int?, vm: TalkViewModel) {
         Portrait(s, vm, Modifier.fillMaxWidth().aspectRatio(4f / 3f))
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(s.title, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("${s.whoShort} · ${s.place}", style = MaterialTheme.typography.bodyLarge, color = Palette.muted, maxLines = 1)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("${s.whoShort} · ${s.place}", style = MaterialTheme.typography.bodyLarge, color = Palette.muted, maxLines = 1,
+                    overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                // 반말로 시작하는 상황만 표시 (존댓말은 기본이라 표시하지 않는다)
+                if (casual) {
+                    Spacer(Modifier.width(8.dp))
+                    SpeechTag()
+                }
+            }
             // 해본 상황은 최고 랠리 수를 보여준다
             rally?.let { Text("최고 랠리 ${it}번", style = MaterialTheme.typography.labelLarge, color = Palette.onAccent) }
         }
@@ -334,7 +379,14 @@ private fun PartnerStage(
             Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(32.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text(s.whoShort, style = MaterialTheme.typography.titleLarge, color = Palette.accent)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(s.whoShort, style = MaterialTheme.typography.titleLarge, color = Palette.accent)
+                // 반말 대화일 때만 표시. 누를 수 없고 대화 중에는 바꾸지 않는다
+                if (state.talkCasual) {
+                    Spacer(Modifier.width(12.dp))
+                    SpeechTag(onDark = true)
+                }
+            }
             val lastPartner = state.messages.lastOrNull { it.speaker == "partner" }?.text
             when (state.phase) {
                 Phase.Starting -> Caption("대화를 준비하고 있어요")

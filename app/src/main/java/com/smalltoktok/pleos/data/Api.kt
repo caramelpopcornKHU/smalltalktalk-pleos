@@ -30,10 +30,18 @@ data class Scenario(
     val distance: String? = null,
     /** 반말 연습을 골랐을 때의 첫 마디 (공유 상황만, 없으면 firstSay) */
     val casualSay: String? = null,
+    /** 상황의 원래 말투 (formal / casual). 아쉬운 대화로 만든 연습은 모델이 관계를 보고 정했다 */
+    val speechLevel: String = "formal",
 ) {
     val mine get() = kind != "shared"
 
-    /** 미리 보기용 첫 마디. 반말 연습이면 반말 첫 마디 */
+    /**
+     * 이 상황을 반말로 하는지. 공유 상황은 사용자가 고른 말투(존댓말 | 반말 스위치)를 따르고,
+     * 내 이야기로 만든 연습은 원래 정해진 말투를 따른다.
+     */
+    fun casual(chosen: Boolean) = if (mine) speechLevel == "casual" else chosen
+
+    /** 미리 보기용 첫 마디. 반말이면 반말 첫 마디 */
     fun firstSay(casual: Boolean) = if (casual) casualSay ?: firstSay else firstSay
 }
 
@@ -158,6 +166,7 @@ class Api(context: Context) {
             kind = o.optString("kind", "shared"),
             distance = o.optStringOrNull("distance"),
             casualSay = o.optStringOrNull("casual_say"),
+            speechLevel = o.optString("speech_level", "formal"),
         )
     }
 
@@ -427,7 +436,7 @@ class Api(context: Context) {
 
     private companion object {
         val JSON = "application/json".toMediaType()
-        const val SCENARIO_COLUMNS = "id,kind,distance,title,who,who_short,place,character_id,casual_say,scenario_turn(position,say)"
+        const val SCENARIO_COLUMNS = "id,kind,distance,title,who,who_short,place,character_id,casual_say,speech_level,scenario_turn(position,say)"
         // 폰 앱 MORNING_CATEGORIES 순서 (packages/shared/src/morning.ts)
         val MORNING_ORDER = listOf("weather", "fun-fact", "season", "food", "outing", "culture", "fuel", "movie-drama", "kpop", "issue", "sports")
     }

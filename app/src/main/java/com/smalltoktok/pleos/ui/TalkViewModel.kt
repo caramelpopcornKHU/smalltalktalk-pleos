@@ -33,8 +33,12 @@ data class TalkState(
     val rallies: Map<String, Int> = emptyMap(),
     /** 홈 맨 위 "오늘의 상대" */
     val todayId: String? = null,
-    /** 반말로 연습 (2026-10-26). 끄면 상황의 원래 말투(공유 상황은 존댓말). 이 기기에 기억한다 */
+    /** 존댓말 | 반말 스위치 (2026-10-26). 공유 상황에만 적용하고 이 기기에 기억한다 */
     val casual: Boolean = false,
+    /** 스위치 위 한 줄 안내("반말: 말 놓은 또래처럼 대화해요")를 이미 봤는지. 처음 한 번만 보여준다 */
+    val speechHintSeen: Boolean = false,
+    /** 지금 대화가 반말인지 (대화 화면 위 "반말" 표시) */
+    val talkCasual: Boolean = false,
 ) {
     val shared get() = scenarios.filter { !it.mine }
     val mine get() = scenarios.filter { it.mine }
@@ -66,14 +70,25 @@ class TalkViewModel(app: Application) : AndroidViewModel(app) {
             st.copy(
                 rallies = records.all.mapNotNull { (k, v) -> (v as? Int)?.let { k to it } }.toMap(),
                 casual = prefs.getBoolean("casual", false),
+                speechHintSeen = prefs.getBoolean("speech_hint_seen", false),
             )
         }
         loadScenarios()
     }
 
-    fun setCasual(on: Boolean) {
+    /** 말투를 바꾼다. 주행 중이면 화면을 다시 보지 않아도 되게 소리로 알려준다 */
+    fun setCasual(on: Boolean, announce: Boolean) {
+        if (on == _state.value.casual) return
         prefs.edit().putBoolean("casual", on).apply()
+        markSpeechHintSeen()
         _state.update { it.copy(casual = on) }
+        if (announce) viewModelScope.launch { voice.speak(if (on) "반말로 할게요." else "존댓말로 할게요.") }
+    }
+
+    private fun markSpeechHintSeen() {
+        if (_state.value.speechHintSeen) return
+        prefs.edit().putBoolean("speech_hint_seen", true).apply()
+        _state.update { it.copy(speechHintSeen = true) }
     }
 
     /** 오늘의 상대: 아직 안 해본 공유 상황 먼저, 다 해봤으면 전체에서. 방금 본 상황은 뺀다 */
@@ -107,12 +122,17 @@ class TalkViewModel(app: Application) : AndroidViewModel(app) {
         loop?.cancel()
         metrics.clear()
         conversationId = null
+        markSpeechHintSeen()
+        val casual = scenario.casual(_state.value.casual)
         _state.update {
-            it.copy(scenario = scenario, phase = Phase.Starting, messages = emptyList(), partnerTurns = 0, feedback = null, error = null)
+            it.copy(
+                scenario = scenario, phase = Phase.Starting, messages = emptyList(), partnerTurns = 0,
+                feedback = null, error = null, talkCasual = casual,
+            )
         }
         loop = viewModelScope.launch {
             try {
-                val started = api.start(scenario.id, _state.value.casual)
+                val started = api.start(scenario.id, casual = !scenario.mine && _state.value.casual)
                 conversationId = started.conversationId
                 _state.update { it.copy(maxPartnerTurns = started.maxPartnerTurns) }
                 var say = started.firstSay
