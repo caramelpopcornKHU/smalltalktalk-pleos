@@ -238,14 +238,19 @@ private fun TodayPartner(s: Scenario, parked: Boolean, state: TalkState, vm: Tal
                 }
             }
             Spacer(Modifier.height(8.dp))
-            // 내 이야기로 만든 연습은 말투가 정해져 있어 스위치 대신 그대로 둔다
-            if (!s.mine) {
-                if (!state.speechHintSeen) {
-                    Text("반말: 말 놓은 또래처럼 대화해요", style = MaterialTheme.typography.bodyLarge, color = Palette.surface.copy(alpha = 0.85f))
-                }
-                SpeechSwitch(casual) { vm.setCasual(it, announce = !parked) }
-                Spacer(Modifier.height(4.dp))
+            if (!state.speechHintSeen) {
+                Text(
+                    if (s.mine) "상: 말수 적은 상대예요" else "반말: 말 놓은 또래처럼 · 상: 말수 적은 상대",
+                    style = MaterialTheme.typography.bodyLarge, color = Palette.surface.copy(alpha = 0.85f),
+                )
             }
+            // 내 이야기로 만든 연습은 말투가 정해져 있어 말투 스위치는 공유 상황에만
+            if (!s.mine) {
+                Segmented(listOf(false to "존댓말", true to "반말"), casual) { vm.setCasual(it, announce = !parked) }
+            }
+            // 상대 난이도 (2026-10-26): 지금까지 상대가 너무 잘 이끌어 줘서 하·중·상을 고른다
+            Segmented(Difficulty.entries.map { it to "난이도 ${it.label}" }, state.difficulty) { vm.setDifficulty(it, announce = !parked) }
+            Spacer(Modifier.height(4.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(
                     onClick = { vm.start(s) },
@@ -265,18 +270,19 @@ private fun TodayPartner(s: Scenario, parked: Boolean, state: TalkState, vm: Tal
 }
 
 /**
- * 존댓말 | 반말 두 칸 스위치. 늘 하나가 선택돼 있어 지금 말투가 보인다.
+ * 존댓말 | 반말, 난이도 하 | 중 | 상 칸 스위치. 늘 하나가 선택돼 있어 지금 상태가 보인다.
  * 라임은 "바로 시작하기"에만 쓰고, 선택된 칸은 흰 바탕 + 먹색 글자(주 버튼이 둘처럼 보이지 않게).
  * 칸을 누르면 그 칸이 탭을 받으므로 카드 전체의 "눌러서 시작"이 같이 실행되지 않는다.
+ * 두 줄이 쌓여도 카드 아래가 너무 높아지지 않게 56dp (UX 검토의 좁은 창 높이).
  */
 @Composable
-private fun SpeechSwitch(casual: Boolean, onChange: (Boolean) -> Unit) {
+private fun <T> Segmented(options: List<Pair<T, String>>, current: T, onChange: (T) -> Unit) {
     Row(
-        Modifier.widthIn(max = 360.dp).fillMaxWidth().height(64.dp).clip(RoundedCornerShape(32.dp))
+        Modifier.widthIn(max = 420.dp).fillMaxWidth().height(56.dp).clip(RoundedCornerShape(28.dp))
             .background(Palette.ink.copy(alpha = 0.55f)).padding(4.dp),
     ) {
-        listOf(false to "존댓말", true to "반말").forEach { (value, label) ->
-            val selected = casual == value
+        options.forEach { (value, label) ->
+            val selected = current == value
             Box(
                 Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(28.dp))
                     .background(if (selected) Palette.surface else Color.Transparent)
@@ -293,10 +299,10 @@ private fun SpeechSwitch(casual: Boolean, onChange: (Boolean) -> Unit) {
     }
 }
 
-/** "반말" 작은 표시 (먹색 테두리). 상황 카드와 대화 화면에서 쓴다 */
+/** "반말"·"난이도 상" 같은 작은 표시 (테두리). 상황 카드와 대화 화면에서 쓴다 */
 @Composable
-private fun SpeechTag(onDark: Boolean = false) = Text(
-    "반말",
+private fun SpeechTag(text: String = "반말", onDark: Boolean = false) = Text(
+    text,
     style = MaterialTheme.typography.labelLarge,
     color = if (onDark) Palette.surface else Palette.ink,
     modifier = Modifier.border(2.dp, if (onDark) Palette.surface else Palette.ink, CircleShape)
@@ -381,11 +387,13 @@ private fun PartnerStage(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(s.whoShort, style = MaterialTheme.typography.titleLarge, color = Palette.accent)
-                // 반말 대화일 때만 표시. 누를 수 없고 대화 중에는 바꾸지 않는다
+                // 반말이면 표시, 난이도는 늘 표시. 누를 수 없고 대화 중에는 바꾸지 않는다
                 if (state.talkCasual) {
                     Spacer(Modifier.width(12.dp))
-                    SpeechTag(onDark = true)
+                    SpeechTag("반말", onDark = true)
                 }
+                Spacer(Modifier.width(8.dp))
+                SpeechTag("난이도 ${state.talkDifficulty.label}", onDark = true)
             }
             val lastPartner = state.messages.lastOrNull { it.speaker == "partner" }?.text
             when (state.phase) {

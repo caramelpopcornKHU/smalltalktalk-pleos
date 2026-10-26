@@ -103,12 +103,24 @@ data class Tip(
 data class HabitRecord(
     val startedAt: java.time.Instant,
     val distance: String?,
+    /** 상대 난이도 easy / normal / hard (이 컬럼 전 대화는 null) */
+    val difficulty: String?,
     val answers: List<HabitAnswer>,
     val phrases: List<String>,
     val longestRally: Int,
 )
 
-data class HabitAnswer(val shape: String, val signals: List<String>, val context: String, val delayMs: Long?)
+/** 습관 태그 v2 (2026-10-26): criteria는 기준 → hit / miss / na, slips는 편안함을 깬 실수 */
+data class HabitAnswer(
+    val shape: String,
+    val criteria: Map<String, String>,
+    val slips: List<String>,
+    val context: String,
+    val delayMs: Long?,
+)
+
+/** 팩트폭행 읽기: 반말 친구가 짚어 주는 말과 서버가 합성한 음성 */
+data class Roast(val text: String, val audioUrl: String?)
 
 /** 아침 카드. 말투 토글: 동료에게(coworkerLine) / 처음 보는 사람에게(strangerLine) */
 data class MorningCard(
@@ -252,9 +264,10 @@ class Api(context: Context) {
      */
     suspend fun habitRecords(days: Int): List<HabitRecord> {
         val since = java.time.Instant.now().minus(java.time.Duration.ofDays(days.toLong())).toString()
-        val select = "started_at,habits,habit_phrases,scenario(distance)"
+        val select = "started_at,difficulty,habits,habit_phrases,scenario(distance)"
+        // v2 기준(2026-10-26)으로 태그한 대화만 센다
         val arr = JSONArray(
-            call("GET", "/rest/v1/conversation?select=$select&habits=not.is.null&started_at=gte.$since&order=started_at.desc"),
+            call("GET", "/rest/v1/conversation?select=$select&habit_version=eq.2&started_at=gte.$since&order=started_at.desc"),
         )
         return (0 until arr.length()).map { i ->
             val o = arr.getJSONObject(i)
@@ -265,11 +278,14 @@ class Api(context: Context) {
                 // PostgREST는 "2026-10-23T05:34:06.12+00:00"처럼 오프셋을 붙여 준다
                 startedAt = java.time.OffsetDateTime.parse(o.getString("started_at")).toInstant(),
                 distance = o.optJSONObject("scenario")?.optStringOrNull("distance"),
+                difficulty = o.optStringOrNull("difficulty"),
                 answers = (0 until answers.length()).map { answers.getJSONObject(it) }.map { a ->
-                    val sig = a.optJSONArray("signals") ?: JSONArray()
+                    val crit = a.optJSONObject("criteria") ?: JSONObject()
+                    val slips = a.optJSONArray("slips") ?: JSONArray()
                     HabitAnswer(
                         shape = a.optString("shape"),
-                        signals = (0 until sig.length()).map { sig.getString(it) },
+                        criteria = crit.keys().asSequence().associateWith { crit.optString(it) },
+                        slips = (0 until slips.length()).map { slips.getString(it) },
                         context = a.optString("context"),
                         delayMs = if (a.isNull("delayMs")) null else a.optLong("delayMs"),
                     )
@@ -278,6 +294,12 @@ class Api(context: Context) {
                 longestRally = h.optInt("longestRally"),
             )
         }
+    }
+
+    /** 최근 7일 습관을 반말 친구 말투로 짚어 준다 (서버가 기록을 직접 모은다, 대화 3번 미만이면 오류) */
+    suspend fun roast(): Roast {
+        val o = conversation(JSONObject().put("action", "roast"))
+        return Roast(o.getString("text"), audioUrl(o.optStringOrNull("audioPath")))
     }
 
     /** 내 성·이름 (profile, RLS로 본인 행만). 아직 입력하지 않았으면 둘 다 null */
@@ -316,9 +338,12 @@ class Api(context: Context) {
         }.sortedBy { MORNING_ORDER.indexOf(it.category).let { i -> if (i < 0) 99 else i } }
     }
 
-    /** casual이면 반말 연습 (서버가 상대·코칭을 반말로). 아니면 상황의 원래 말투 */
-    suspend fun start(scenarioId: String, casual: Boolean): Started {
-        val body = JSONObject().put("action", "start").put("scenarioId", scenarioId)
+    /**
+     * casual이면 반말 연습 (서버가 상대·코칭을 반말로). 아니면 상황의 원래 말투.
+     * difficulty: 상대 난이도 easy(하) / normal(중) / hard(상)
+     */
+    suspend fun start(scenarioId: String, casual: Boolean, difficulty: String): Started {
+        val body = JSONObject().put("action", "start").put("scenarioId", scenarioId).put("difficulty", difficulty)
         if (casual) body.put("speechLevel", "casual")
         val o = conversation(body)
         return Started(

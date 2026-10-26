@@ -17,6 +17,15 @@ import kotlinx.coroutines.launch
 
 enum class Phase { Idle, Starting, PartnerSpeaking, Listening, Thinking, Finishing, Done, Error }
 
+/** 대화 상대 난이도 (docs/conversation-principles.md 3절). 하 = 이끌어 줌, 중 = 짧게 답함, 상 = 단답·무심 */
+enum class Difficulty(val key: String, val label: String) {
+    Easy("easy", "하"), Normal("normal", "중"), Hard("hard", "상");
+
+    companion object {
+        fun of(key: String?) = entries.firstOrNull { it.key == key } ?: Normal
+    }
+}
+
 data class TalkState(
     val scenarios: List<Scenario> = emptyList(),
     val loadingScenarios: Boolean = true,
@@ -39,6 +48,10 @@ data class TalkState(
     val speechHintSeen: Boolean = false,
     /** 지금 대화가 반말인지 (대화 화면 위 "반말" 표시) */
     val talkCasual: Boolean = false,
+    /** 상대 난이도 하 | 중 | 상 (2026-10-26). 이 기기에 기억한다 */
+    val difficulty: Difficulty = Difficulty.Normal,
+    /** 지금 대화의 난이도 (대화 화면 위 표시) */
+    val talkDifficulty: Difficulty = Difficulty.Normal,
 ) {
     val shared get() = scenarios.filter { !it.mine }
     val mine get() = scenarios.filter { it.mine }
@@ -71,6 +84,7 @@ class TalkViewModel(app: Application) : AndroidViewModel(app) {
                 rallies = records.all.mapNotNull { (k, v) -> (v as? Int)?.let { k to it } }.toMap(),
                 casual = prefs.getBoolean("casual", false),
                 speechHintSeen = prefs.getBoolean("speech_hint_seen", false),
+                difficulty = Difficulty.of(prefs.getString("difficulty", null)),
             )
         }
         loadScenarios()
@@ -83,6 +97,15 @@ class TalkViewModel(app: Application) : AndroidViewModel(app) {
         markSpeechHintSeen()
         _state.update { it.copy(casual = on) }
         if (announce) viewModelScope.launch { voice.speak(if (on) "반말로 할게요." else "존댓말로 할게요.") }
+    }
+
+    /** 상대 난이도를 바꾼다. 주행 중이면 소리로 알려준다 */
+    fun setDifficulty(d: Difficulty, announce: Boolean) {
+        if (d == _state.value.difficulty) return
+        prefs.edit().putString("difficulty", d.key).apply()
+        markSpeechHintSeen()
+        _state.update { it.copy(difficulty = d) }
+        if (announce) viewModelScope.launch { voice.speak("난이도 ${d.label}으로 할게요.") }
     }
 
     private fun markSpeechHintSeen() {
@@ -127,12 +150,12 @@ class TalkViewModel(app: Application) : AndroidViewModel(app) {
         _state.update {
             it.copy(
                 scenario = scenario, phase = Phase.Starting, messages = emptyList(), partnerTurns = 0,
-                feedback = null, error = null, talkCasual = casual,
+                feedback = null, error = null, talkCasual = casual, talkDifficulty = it.difficulty,
             )
         }
         loop = viewModelScope.launch {
             try {
-                val started = api.start(scenario.id, casual = !scenario.mine && _state.value.casual)
+                val started = api.start(scenario.id, casual = !scenario.mine && _state.value.casual, difficulty = _state.value.difficulty.key)
                 conversationId = started.conversationId
                 _state.update { it.copy(maxPartnerTurns = started.maxPartnerTurns) }
                 var say = started.firstSay
