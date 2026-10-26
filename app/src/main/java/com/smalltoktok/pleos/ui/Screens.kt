@@ -158,7 +158,7 @@ private fun HomeScreen(state: TalkState, parked: Boolean, vm: TalkViewModel) {
                 BigButton("다시 불러오기") { vm.loadScenarios() }
             }
             // 주행 중: 오늘의 상대 사진과 큰 시작 버튼만 (목록을 읽고 고르는 일은 정차 중에)
-            !parked -> state.today?.let { TodayPartner(it, parked = false, state, vm, Modifier.weight(1f)) }
+            !parked -> state.today?.let { DrivingHome(it, state, vm, Modifier.weight(1f)) }
             else -> BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                 // 2026-10-23 시안(docs/prototypes/today-partner.html): 넓은 창은 왼쪽 큰 세로 카드(바로 시작하기·다른 사람)
                 // + 오른쪽 사진 카드 목록, 좁은 창은 A안(세로 카드 위, 목록 아래). 사진을 세로 그대로 써서 얼굴이 잘리지 않게.
@@ -270,28 +270,90 @@ private fun TodayPartner(s: Scenario, parked: Boolean, state: TalkState, vm: Tal
 }
 
 /**
+ * 주행 중 홈 (2026-10-26 피드백 두 번): 가로로 꽉 찬 사진은 얼굴이 반쯤 잘렸고, 카드 옆에 스위치를 따로 두니 분리돼 보였다.
+ * 세로에 가까운 카드 하나에 사진을 채우고, 이름표는 위로, 큰 스위치(88dp)와 시작 버튼(96dp)은 아래(얼굴 아래 상반신 위)에 넣는다.
+ * 카드는 높이에 맞추고 가운데 둔다. 폭이 높이의 0.85배라 사진(3:4)은 위아래만 조금 잘리고 얼굴은 그대로다.
+ */
+@Composable
+private fun DrivingHome(s: Scenario, state: TalkState, vm: TalkViewModel, modifier: Modifier) =
+    Box(modifier.fillMaxWidth().padding(bottom = 8.dp), contentAlignment = Alignment.TopCenter) {
+        val casual = s.casual(state.casual)
+        Box(
+            Modifier.fillMaxHeight().aspectRatio(0.85f, matchHeightConstraintsFirst = true)
+                .clip(RoundedCornerShape(28.dp)).clickable { vm.start(s) },
+        ) {
+            Portrait(s, vm, Modifier.fillMaxSize())
+            // 위는 이름표가 읽히게 살짝, 아래는 스위치가 읽히게 진하게. 가운데(얼굴)는 비워 둔다
+            Box(
+                Modifier.fillMaxSize().background(
+                    Brush.verticalGradient(
+                        0f to Palette.ink.copy(alpha = 0.55f), 0.22f to Color.Transparent,
+                        0.55f to Color.Transparent, 0.75f to Palette.ink.copy(alpha = 0.85f), 1f to Palette.ink.copy(alpha = 0.95f),
+                    ),
+                ),
+            )
+            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "오늘의 상대",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Palette.onAccent,
+                    modifier = Modifier.clip(CircleShape).background(Palette.accent).padding(horizontal = 18.dp, vertical = 10.dp),
+                )
+                Text(s.whoShort, style = MaterialTheme.typography.titleLarge, color = Palette.accent)
+                Text(s.title, style = MaterialTheme.typography.headlineMedium, color = Palette.surface)
+            }
+            Column(
+                Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                if (!s.mine) Segmented(listOf(false to "존댓말", true to "반말"), casual, large = true) { vm.setCasual(it, announce = true) }
+                Segmented(Difficulty.entries.map { it to "난이도 ${it.label}" }, state.difficulty, large = true) {
+                    vm.setDifficulty(it, announce = true)
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Button(
+                        onClick = { vm.start(s) },
+                        modifier = Modifier.weight(1f).height(96.dp),
+                        shape = RoundedCornerShape(48.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Palette.accent, contentColor = Palette.onAccent),
+                    ) { Text("바로 시작하기", style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)) }
+                    OutlinedButton(
+                        onClick = { vm.shuffleToday() },
+                        modifier = Modifier.height(96.dp),
+                        shape = RoundedCornerShape(48.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Palette.surface),
+                    ) { Text("다른 사람", style = MaterialTheme.typography.headlineSmall) }
+                }
+            }
+        }
+    }
+
+/**
  * 존댓말 | 반말, 난이도 하 | 중 | 상 칸 스위치. 늘 하나가 선택돼 있어 지금 상태가 보인다.
  * 라임은 "바로 시작하기"에만 쓰고, 선택된 칸은 흰 바탕 + 먹색 글자(주 버튼이 둘처럼 보이지 않게).
  * 칸을 누르면 그 칸이 탭을 받으므로 카드 전체의 "눌러서 시작"이 같이 실행되지 않는다.
  * 두 줄이 쌓여도 카드 아래가 너무 높아지지 않게 56dp (UX 검토의 좁은 창 높이).
+ * large: 주행 중 화면용 88dp (흔들리는 차 안에서도 한 번에 누르게, Pleos 가이드 72~88dp)
  */
 @Composable
-private fun <T> Segmented(options: List<Pair<T, String>>, current: T, onChange: (T) -> Unit) {
+private fun <T> Segmented(options: List<Pair<T, String>>, current: T, large: Boolean = false, onChange: (T) -> Unit) {
+    val height = if (large) 88.dp else 56.dp
     Row(
-        Modifier.widthIn(max = 420.dp).fillMaxWidth().height(56.dp).clip(RoundedCornerShape(28.dp))
-            .background(Palette.ink.copy(alpha = 0.55f)).padding(4.dp),
+        Modifier.widthIn(max = if (large) 720.dp else 420.dp).fillMaxWidth().height(height).clip(RoundedCornerShape(height / 2))
+            .background(Palette.ink.copy(alpha = if (large) 0.7f else 0.55f)).padding(4.dp),
     ) {
         options.forEach { (value, label) ->
             val selected = current == value
             Box(
-                Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(28.dp))
+                Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(height / 2))
                     .background(if (selected) Palette.surface else Color.Transparent)
                     .clickable { onChange(value) },
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     if (selected) "✓ $label" else label,
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                    style = (if (large) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.titleMedium)
+                        .copy(fontWeight = FontWeight.SemiBold),
                     color = if (selected) Palette.ink else Palette.surface.copy(alpha = 0.7f),
                 )
             }

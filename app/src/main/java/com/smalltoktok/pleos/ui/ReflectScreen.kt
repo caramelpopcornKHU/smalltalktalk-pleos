@@ -50,7 +50,8 @@ private val DISTANCES = listOf("first-meet" to "처음 보는 사람", "familiar
 
 /**
  * 아쉬운 대화 탭 (폰 앱 화면을 모티브로, 2026-10-23).
- * 털어놓기: "아쉬웠던 그 순간, 다시 해 볼까요?" + 라임 공 + 장면 칩 → 받아쓴 조각 → (같이 돌아보기 | 추가 상황 말하기)
+ * 털어놓기: "아쉬웠던 대화를 말해 주면 그 상대로 연습해요" + 3단계 안내 + 라임 공 + 장면 칩 → 받아쓴 조각 → (같이 돌아보기 | 추가 상황 말하기)
+ * 2026-10-26: 처음 보는 사람이 무슨 기능인지 모르겠다는 피드백. "내 상황을 말하면 그 상대와 연습할 수 있다"가 바로 보이게 바꿨다.
  * → 기다리는 동안 내가 한 말과 단계 → 결과(연습하기 맨 위, 이렇게 이해했어요, 요약, 추천 한마디) → 아래에 지난 기록.
  * 주행 중에는 글 대신 몇 문장 들었는지만 보여주고, 결과는 소리로 들려준다.
  */
@@ -90,11 +91,28 @@ private fun Telling(state: ReflectState, partial: String, parked: Boolean, vm: R
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            if (first) "아쉬웠던 그 순간, 다시 해 볼까요?" else "더 하고 싶은 말이 있나요?",
+            if (first) "아쉬웠던 대화를 말해 주면\n그 상대로 다시 연습해요" else "더 하고 싶은 말이 있나요?",
             style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center,
         )
+        if (first) {
+            // 무엇을 해 주는 기능인지 한눈에: 말하기 → 한마디 3개 → 그 상대와 대화
+            // 좁은 창(상황판 옆)에서는 줄이 바뀌도록 FlowRow
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                itemVerticalAlignment = Alignment.CenterVertically,
+            ) {
+                listOf("① 있었던 일 말하기", "② 해볼 한마디 3개", "③ 그 상대와 대화 연습").forEachIndexed { i, step ->
+                    if (i > 0) Text("→", style = MaterialTheme.typography.titleMedium, color = Palette.muted)
+                    Text(
+                        step, style = MaterialTheme.typography.labelLarge,
+                        modifier = Modifier.clip(CircleShape).background(Palette.bg).padding(horizontal = 16.dp, vertical = 10.dp),
+                    )
+                }
+            }
+        }
         Text(
-            if (first) "그때 일을 편하게 말해 주시면, 그 사람과 다시 연습할 수 있게 만들어 드려요. 두서없어도 괜찮아요."
+            if (first) "회사, 모임, 동네에서 말이 막혔던 순간을 두서없이 말해 주세요. 그 사람과 그 자리를 그대로 만들어 드려요."
             else "빠진 상황이나 그때 마음을 더 말해도 되고, 이대로 같이 돌아봐도 돼요.",
             style = MaterialTheme.typography.bodyLarge, color = Palette.muted, textAlign = TextAlign.Center,
         )
@@ -110,6 +128,10 @@ private fun Telling(state: ReflectState, partial: String, parked: Boolean, vm: R
             )
             if (first && !listening) {
                 Text("누구와 · 어디서 · 무슨 말이 오갔는지 · 어느 순간이 아쉬웠는지", style = MaterialTheme.typography.bodyLarge, color = Palette.muted)
+                Text(
+                    "예: \"팀장님이 주말에 뭐 했냐고 물었는데 '그냥 쉬었어요'만 하고 끝났어요\"",
+                    style = MaterialTheme.typography.bodyLarge, color = Palette.muted, textAlign = TextAlign.Center,
+                )
             }
         }
         // 어디서부터 말할지 막힐 때만 쓰는 보조 입구. 첫마디만 채우고 나머지는 내 이야기로 (글이라 정차 중에만)
