@@ -114,11 +114,23 @@ class TalkViewModel(app: Application) : AndroidViewModel(app) {
         _state.update { it.copy(speechHintSeen = true) }
     }
 
-    /** 오늘의 상대: 아직 안 해본 공유 상황 먼저, 다 해봤으면 전체에서. 방금 본 상황은 뺀다 */
+    /** "다른 사람"을 누를 때 꺼내는 순서. 공유 상황 전체를 섞어 한 바퀴 다 보기 전에는 같은 상대가 다시 나오지 않는다 */
+    private val todayBag = ArrayDeque<String>()
+
+    /**
+     * 오늘의 상대를 무작위로 바꾼다 (2026-10-26).
+     * 예전에는 "안 해본 상황 먼저"라 몇 번 해 본 뒤에는 남은 4~5명만 계속 돌았다.
+     * 이제는 카드 섞듯 전체를 섞어 차례로 꺼내고(셔플 백), 다 꺼내면 다시 섞는다. 바로 전 상대가 이어 나오지 않게 한다.
+     */
     fun shuffleToday() = _state.update { st ->
-        val candidates = st.shared.let { all -> if (all.size > 1) all.filter { it.id != st.todayId } else all }
-        val fresh = candidates.filter { it.id !in st.rallies }
-        st.copy(todayId = (fresh.ifEmpty { candidates }).randomOrNull()?.id)
+        val ids = st.shared.map { it.id }
+        todayBag.retainAll(ids.toSet())
+        if (todayBag.isEmpty()) {
+            todayBag.addAll(ids.shuffled())
+            // 새로 섞은 첫 장이 방금 본 상대면 맨 뒤로 보낸다
+            if (todayBag.size > 1 && todayBag.first() == st.todayId) todayBag.addLast(todayBag.removeFirst())
+        }
+        st.copy(todayId = todayBag.removeFirstOrNull())
     }
 
     /** 연습을 마치면 이전 기록보다 많이 주고받았을 때만 최고 기록을 바꾼다 */
