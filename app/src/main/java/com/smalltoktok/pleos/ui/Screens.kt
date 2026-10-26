@@ -156,7 +156,7 @@ private fun HomeScreen(state: TalkState, parked: Boolean, vm: TalkViewModel) {
                 BigButton("다시 불러오기") { vm.loadScenarios() }
             }
             // 주행 중: 오늘의 상대 사진과 큰 시작 버튼만 (목록을 읽고 고르는 일은 정차 중에)
-            !parked -> state.today?.let { TodayPartner(it, parked = false, vm, Modifier.weight(1f)) }
+            !parked -> state.today?.let { TodayPartner(it, parked = false, state.casual, vm, Modifier.weight(1f)) }
             else -> BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                 // 2026-10-23 시안(docs/prototypes/today-partner.html): 넓은 창은 왼쪽 큰 세로 카드(바로 시작하기·다른 사람)
                 // + 오른쪽 사진 카드 목록, 좁은 창은 A안(세로 카드 위, 목록 아래). 사진을 세로 그대로 써서 얼굴이 잘리지 않게.
@@ -164,7 +164,7 @@ private fun HomeScreen(state: TalkState, parked: Boolean, vm: TalkViewModel) {
                 if (maxWidth > WIDE_HOME) {
                     Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                         state.today?.let { t ->
-                            TodayPartner(t, parked = true, vm, Modifier.fillMaxHeight().padding(bottom = 8.dp).aspectRatio(3f / 4f))
+                            TodayPartner(t, parked = true, state.casual, vm, Modifier.fillMaxHeight().padding(bottom = 8.dp).aspectRatio(3f / 4f))
                         }
                         ScenarioGrid(state, vm, Modifier.weight(1f).fillMaxHeight(), today = null)
                     }
@@ -189,10 +189,15 @@ private fun ScenarioGrid(state: TalkState, vm: TalkViewModel, modifier: Modifier
 ) {
     today?.let { t ->
         item(key = "today", span = { GridItemSpan(maxLineSpan) }) {
-            TodayPartner(t, parked = true, vm, Modifier.fillMaxWidth().aspectRatio(3f / 3.2f))
+            TodayPartner(t, parked = true, state.casual, vm, Modifier.fillMaxWidth().aspectRatio(3f / 3.2f))
         }
     }
-    item(span = { GridItemSpan(maxLineSpan) }) { Section("누구와, 어떤 자리에서?") }
+    item(span = { GridItemSpan(maxLineSpan) }) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(1f)) { Section("누구와, 어떤 자리에서?") }
+            Chip("반말로 연습", state.casual, bordered = true) { vm.setCasual(!state.casual) }
+        }
+    }
     items(state.shared, key = { it.id }) { ScenarioCard(it, state.rallies[it.id], vm) }
     if (state.mine.isNotEmpty()) {
         item(span = { GridItemSpan(maxLineSpan) }) { Section("내 이야기로 만든 연습") }
@@ -205,9 +210,10 @@ private fun ScenarioGrid(state: TalkState, vm: TalkViewModel, modifier: Modifier
 /**
  * 오늘의 상대 (폰 앱 2026-10-22): 큰 사진 + 상황·첫 마디 미리 보기 + 바로 시작하기 / 다른 사람.
  * 사진 어디를 눌러도 시작한다. 첫 마디 글은 정차 중에만 보여준다.
+ * 오른쪽 위 "반말로 연습"(2026-10-26)을 켜면 상대가 말 놓은 사이로 반말을 쓴다. 주행 중에도 누를 수 있게 크게 둔다.
  */
 @Composable
-private fun TodayPartner(s: Scenario, parked: Boolean, vm: TalkViewModel, modifier: Modifier) {
+private fun TodayPartner(s: Scenario, parked: Boolean, casual: Boolean, vm: TalkViewModel, modifier: Modifier) {
     Box(modifier.clip(RoundedCornerShape(28.dp)).clickable { vm.start(s) }) {
         Portrait(s, vm, Modifier.fillMaxSize())
         Box(
@@ -221,6 +227,15 @@ private fun TodayPartner(s: Scenario, parked: Boolean, vm: TalkViewModel, modifi
             color = Palette.onAccent,
             modifier = Modifier.padding(24.dp).clip(CircleShape).background(Palette.accent).padding(horizontal = 18.dp, vertical = 10.dp),
         )
+        Text(
+            if (casual) "반말로 연습 ✓" else "반말로 연습",
+            style = MaterialTheme.typography.labelLarge,
+            color = if (casual) Palette.onAccent else Palette.surface,
+            modifier = Modifier.align(Alignment.TopEnd).padding(24.dp).clip(CircleShape)
+                .background(if (casual) Palette.accent else Palette.ink.copy(alpha = 0.55f))
+                .clickable { vm.setCasual(!casual) }
+                .padding(horizontal = 18.dp, vertical = 10.dp),
+        )
         Column(
             Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(28.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -228,7 +243,7 @@ private fun TodayPartner(s: Scenario, parked: Boolean, vm: TalkViewModel, modifi
             Text("${s.whoShort} · ${s.who}", style = MaterialTheme.typography.bodyLarge, color = Palette.surface)
             Text(s.title, style = MaterialTheme.typography.headlineMedium, color = Palette.surface)
             if (parked) {
-                s.firstSay?.let {
+                s.firstSay(casual)?.let {
                     Text("“$it”", style = MaterialTheme.typography.bodyLarge, color = Palette.surface, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
             }

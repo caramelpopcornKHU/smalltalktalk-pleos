@@ -33,6 +33,8 @@ data class TalkState(
     val rallies: Map<String, Int> = emptyMap(),
     /** 홈 맨 위 "오늘의 상대" */
     val todayId: String? = null,
+    /** 반말로 연습 (2026-10-26). 끄면 상황의 원래 말투(공유 상황은 존댓말). 이 기기에 기억한다 */
+    val casual: Boolean = false,
 ) {
     val shared get() = scenarios.filter { !it.mine }
     val mine get() = scenarios.filter { it.mine }
@@ -57,10 +59,21 @@ class TalkViewModel(app: Application) : AndroidViewModel(app) {
     private val metrics = mutableListOf<Metrics>()
     private var loop: Job? = null
     private val records = app.getSharedPreferences("rally", 0)
+    private val prefs = app.getSharedPreferences("talk", 0)
 
     init {
-        _state.update { st -> st.copy(rallies = records.all.mapNotNull { (k, v) -> (v as? Int)?.let { k to it } }.toMap()) }
+        _state.update { st ->
+            st.copy(
+                rallies = records.all.mapNotNull { (k, v) -> (v as? Int)?.let { k to it } }.toMap(),
+                casual = prefs.getBoolean("casual", false),
+            )
+        }
         loadScenarios()
+    }
+
+    fun setCasual(on: Boolean) {
+        prefs.edit().putBoolean("casual", on).apply()
+        _state.update { it.copy(casual = on) }
     }
 
     /** 오늘의 상대: 아직 안 해본 공유 상황 먼저, 다 해봤으면 전체에서. 방금 본 상황은 뺀다 */
@@ -99,7 +112,7 @@ class TalkViewModel(app: Application) : AndroidViewModel(app) {
         }
         loop = viewModelScope.launch {
             try {
-                val started = api.start(scenario.id)
+                val started = api.start(scenario.id, _state.value.casual)
                 conversationId = started.conversationId
                 _state.update { it.copy(maxPartnerTurns = started.maxPartnerTurns) }
                 var say = started.firstSay

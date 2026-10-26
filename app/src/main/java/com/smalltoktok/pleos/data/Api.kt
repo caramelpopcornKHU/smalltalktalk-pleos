@@ -28,8 +28,13 @@ data class Scenario(
     val kind: String = "shared",
     /** 관계 거리 (first-meet / familiar-face / daily) */
     val distance: String? = null,
+    /** 반말 연습을 골랐을 때의 첫 마디 (공유 상황만, 없으면 firstSay) */
+    val casualSay: String? = null,
 ) {
     val mine get() = kind != "shared"
+
+    /** 미리 보기용 첫 마디. 반말 연습이면 반말 첫 마디 */
+    fun firstSay(casual: Boolean) = if (casual) casualSay ?: firstSay else firstSay
 }
 
 data class Message(val speaker: String, val text: String) {
@@ -152,6 +157,7 @@ class Api(context: Context) {
             firstSay = first?.optStringOrNull("say"),
             kind = o.optString("kind", "shared"),
             distance = o.optStringOrNull("distance"),
+            casualSay = o.optStringOrNull("casual_say"),
         )
     }
 
@@ -301,8 +307,11 @@ class Api(context: Context) {
         }.sortedBy { MORNING_ORDER.indexOf(it.category).let { i -> if (i < 0) 99 else i } }
     }
 
-    suspend fun start(scenarioId: String): Started {
-        val o = conversation(JSONObject().put("action", "start").put("scenarioId", scenarioId))
+    /** casual이면 반말 연습 (서버가 상대·코칭을 반말로). 아니면 상황의 원래 말투 */
+    suspend fun start(scenarioId: String, casual: Boolean): Started {
+        val body = JSONObject().put("action", "start").put("scenarioId", scenarioId)
+        if (casual) body.put("speechLevel", "casual")
+        val o = conversation(body)
         return Started(
             conversationId = o.getString("conversationId"),
             maxPartnerTurns = o.getInt("maxPartnerTurns"),
@@ -418,7 +427,7 @@ class Api(context: Context) {
 
     private companion object {
         val JSON = "application/json".toMediaType()
-        const val SCENARIO_COLUMNS = "id,kind,distance,title,who,who_short,place,character_id,scenario_turn(position,say)"
+        const val SCENARIO_COLUMNS = "id,kind,distance,title,who,who_short,place,character_id,casual_say,scenario_turn(position,say)"
         // 폰 앱 MORNING_CATEGORIES 순서 (packages/shared/src/morning.ts)
         val MORNING_ORDER = listOf("weather", "fun-fact", "season", "food", "outing", "culture", "fuel", "movie-drama", "kpop", "issue", "sports")
     }
