@@ -29,3 +29,7 @@ apk-out/
 
 # Android Studio "Generate Signed APK" 결과물 (APK·R8 mapping)
 /app/release/
+
+# README 화면 후보(고르기 전 원본)
+/docs/screenshots/candidates/
+/docs/screenshots/candidates_sheet.jpg
