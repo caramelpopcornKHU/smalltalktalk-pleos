@@ -81,6 +81,19 @@ fun HabitIcon(color: Color, size: Dp = 32.dp) = Icon24(size) {
     ball(11f, 6f, 2.4f, 1.6f)
 }
 
+/**
+ * AI 판사: 저울 (2026-10-26, 사용자가 고른 Icons8 "Scales" iOS 27 filled, res/drawable-nodpi/ic_judge_scales.png).
+ * 직접 그린 판사망치가 마음에 들지 않아 바꿨다. 검은 PNG를 탭 색으로 칠한다.
+ * Icons8 무료 이용 조건: 앱 정보(오픈소스·저작권 고지)에 "Icons by Icons8" 링크를 표기해야 한다.
+ */
+@Composable
+fun JudgeIcon(color: Color, size: Dp = 32.dp) = androidx.compose.foundation.Image(
+    painter = androidx.compose.ui.res.painterResource(com.smalltoktok.pleos.R.drawable.ic_judge_scales),
+    contentDescription = null,
+    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(color),
+    modifier = Modifier.size(size),
+)
+
 /** 헤더: 알림 (종) */
 @Composable
 fun BellIcon(color: Color, size: Dp = 28.dp) = Icon24(size) {

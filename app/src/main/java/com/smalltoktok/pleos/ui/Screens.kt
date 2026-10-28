@@ -82,12 +82,14 @@ fun App(vm: TalkViewModel) {
     val profileVm: ProfileViewModel = viewModel()
     val profile by profileVm.state.collectAsStateWithLifecycle()
     val habitVm: HabitViewModel = viewModel()
+    val judgeVm: JudgeViewModel = viewModel()
     // 다른 앱이 전체화면을 차지해 보이지 않게 되면 마이크·소리를 멈춘다 (나란히 띄운 창일 때는 계속)
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
         vm.onBackground()
         reflectVm.onBackground()
         morningVm.stopBriefing()
         habitVm.stopSpeaking()
+        judgeVm.onBackground()
     }
     // 전체화면일 때 위 차량 정보 줄·아래 공조 바(시스템 바)와 겹치지 않게 안전 영역 안에만 그린다.
     // 상황판 옆 창(일부 화면)일 때는 겹치는 영역이 없어 여백이 0이 된다
@@ -111,6 +113,7 @@ fun App(vm: TalkViewModel) {
                             Tab.Reflect -> ReflectScreen(reflectVm, parked) { vm.startNew(it) }
                             Tab.Morning -> MorningScreen(morningVm, parked)
                             Tab.Habits -> HabitScreen(habitVm, parked, profile.given) { distance -> vm.startForDistance(distance) }
+                            Tab.Judge -> JudgeScreen(judgeVm, parked)
                         }
                     }
                 }

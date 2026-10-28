@@ -42,6 +42,8 @@ enum class Tab(val label: String, val icon: @Composable (Color) -> Unit) {
     Morning("아침 카드", { MorningIcon(it) }),
     // 관계 노트 자리를 나의 대화 습관으로 (2026-10-23). 저장한 한마디·관계 포인트는 나중에 이 탭 아래로
     Habits("나의 대화 습관", { HabitIcon(it) }),
+    // 여럿이 탄 차에서 장난 논쟁을 판결 (2026-10-26, 시안 smalltalktalk docs/prototypes/ai-judge.html)
+    Judge("AI 판사", { JudgeIcon(it) }),
 }
 
 /** 탭 바 밖의 화면 (헤더 버튼으로 연다) */

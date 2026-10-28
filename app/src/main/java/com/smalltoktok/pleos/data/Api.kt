@@ -119,6 +119,9 @@ data class HabitAnswer(
     val delayMs: Long?,
 )
 
+/** AI 판사 판결: winner a / b / none(판결하지 않는 주제), 서버가 합성한 판사 목소리 */
+data class Verdict(val winner: String, val title: String, val reason: String, val audioUrl: String?)
+
 /** 팩트폭행 읽기: 반말 친구가 짚어 주는 말과 서버가 합성한 음성 */
 data class Roast(val text: String, val audioUrl: String?)
 
@@ -308,6 +311,19 @@ class Api(context: Context) {
     suspend fun roast(): Roast {
         val o = conversation(JSONObject().put("action", "roast"))
         return Roast(o.getString("text"), audioUrl(o.optStringOrNull("audioPath")))
+    }
+
+    /** AI 판사: 논쟁 주제와 A·B 주장으로 판결 (재심이면 이전 판결과 반박을 같이). 내용은 서버에 저장하지 않는다 */
+    suspend fun judge(topic: String, a: String, b: String, previous: String?, appealA: String?, appealB: String?): Verdict {
+        val body = JSONObject().put("topic", topic).put("a", a).put("b", b)
+        if (previous != null) {
+            body.put("appeal", JSONObject().put("previous", previous).apply {
+                appealA?.let { put("a", it) }
+                appealB?.let { put("b", it) }
+            })
+        }
+        val o = JSONObject(call("POST", "/functions/v1/judge", body))
+        return Verdict(o.getString("winner"), o.getString("title"), o.getString("reason"), audioUrl(o.optStringOrNull("audioPath")))
     }
 
     /** 내 성·이름 (profile, RLS로 본인 행만). 아직 입력하지 않았으면 둘 다 null */
