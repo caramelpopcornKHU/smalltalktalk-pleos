@@ -42,6 +42,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -107,7 +108,12 @@ fun App(vm: TalkViewModel) {
                 )
                 Box(Modifier.weight(1f)) {
                     when (extra) {
-                        Extra.Settings -> NameScreen(profileVm, parked, asSettings = true) { extra = null }
+                        Extra.Settings -> NameScreen(
+                            profileVm, parked, asSettings = true,
+                            onNotices = { extra = Extra.Notices },
+                        ) { extra = null }
+                        // 주행으로 바뀌면 설정으로 돌아간다 (글이 많은 화면)
+                        Extra.Notices -> if (parked) NoticesScreen() else LaunchedEffect(Unit) { extra = Extra.Settings }
                         null -> when (tab) {
                             Tab.Evening -> HomeScreen(state, parked, vm)
                             Tab.Reflect -> ReflectScreen(reflectVm, parked) { vm.startNew(it) }

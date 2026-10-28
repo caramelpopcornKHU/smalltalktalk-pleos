@@ -68,17 +68,17 @@ fun JudgeScreen(vm: JudgeViewModel, parked: Boolean) {
             Modifier.fillMaxSize().then(if (wide) Modifier else Modifier.verticalScroll(rememberScrollState())),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            TopicRow(state, vm)
+            TopicRow(state, vm, parked)
             if (wide) {
                 Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                    Side(JudgeSlot.A, state, vm, Modifier.weight(1f).fillMaxHeight())
-                    Bench(state, vm, Modifier.width(240.dp).fillMaxHeight())
-                    Side(JudgeSlot.B, state, vm, Modifier.weight(1f).fillMaxHeight())
+                    Side(JudgeSlot.A, state, vm, parked, Modifier.weight(1f).fillMaxHeight())
+                    Bench(state, vm, parked, Modifier.width(240.dp).fillMaxHeight())
+                    Side(JudgeSlot.B, state, vm, parked, Modifier.weight(1f).fillMaxHeight())
                 }
             } else {
-                Side(JudgeSlot.A, state, vm, Modifier.fillMaxWidth().height(280.dp))
-                Side(JudgeSlot.B, state, vm, Modifier.fillMaxWidth().height(280.dp))
-                Bench(state, vm, Modifier.fillMaxWidth())
+                Side(JudgeSlot.A, state, vm, parked, Modifier.fillMaxWidth().height(280.dp))
+                Side(JudgeSlot.B, state, vm, parked, Modifier.fillMaxWidth().height(280.dp))
+                Bench(state, vm, parked, Modifier.fillMaxWidth())
             }
         }
         if (state.verdict != null) {
@@ -88,14 +88,14 @@ fun JudgeScreen(vm: JudgeViewModel, parked: Boolean) {
 }
 
 @Composable
-private fun TopicRow(state: JudgeState, vm: JudgeViewModel) {
+private fun TopicRow(state: JudgeState, vm: JudgeViewModel, parked: Boolean) {
     val listening = state.listening == JudgeSlot.Topic
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(Palette.surface).padding(horizontal = 24.dp, vertical = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        Ball("주제", Palette.ink, Palette.surface, listening, size = 76, description = "논쟁 주제 말하기") { vm.toggle(JudgeSlot.Topic) }
+        Ball("주제", Palette.ink, Palette.surface, listening, parked, size = 76, description = "논쟁 주제 말하기") { vm.toggle(JudgeSlot.Topic) }
         Text("오늘의 논쟁", style = MaterialTheme.typography.labelLarge, color = Palette.muted)
         Text(
             state.topic.ifEmpty { if (listening) "듣고 있어요…" else "공을 누르고 논쟁 주제를 말해 주세요" },
@@ -107,7 +107,7 @@ private fun TopicRow(state: JudgeState, vm: JudgeViewModel) {
 }
 
 @Composable
-private fun Side(slot: JudgeSlot, state: JudgeState, vm: JudgeViewModel, modifier: Modifier) {
+private fun Side(slot: JudgeSlot, state: JudgeState, vm: JudgeViewModel, parked: Boolean, modifier: Modifier) {
     val isA = slot == JudgeSlot.A
     val claim = if (isA) state.a else state.b
     val rebuttal = if (isA) state.appealA else state.appealB
@@ -151,7 +151,7 @@ private fun Side(slot: JudgeSlot, state: JudgeState, vm: JudgeViewModel, modifie
                 Ball(
                     if (isA) "A" else "B",
                     if (isA) Palette.accent else SideB, if (isA) Palette.onAccent else OnSideB,
-                    listening, size = 96, description = if (isA) "A 주장 말하기" else "B 주장 말하기",
+                    listening, parked, size = 96, description = if (isA) "A 주장 말하기" else "B 주장 말하기",
                 ) { vm.toggle(slot) }
                 Text(
                     when {
@@ -173,14 +173,14 @@ private fun Side(slot: JudgeSlot, state: JudgeState, vm: JudgeViewModel, modifie
     }
 }
 
-/** 가운데: 저울(판결 중엔 흔들림) + 판결 버튼 */
+/** 가운데: 저울(판결 중엔 흔들림, 주행 중엔 멈춤) + 판결 버튼 */
 @Composable
-private fun Bench(state: JudgeState, vm: JudgeViewModel, modifier: Modifier) {
+private fun Bench(state: JudgeState, vm: JudgeViewModel, parked: Boolean, modifier: Modifier) {
     val swing = rememberInfiniteTransition(label = "scales")
     val angle by swing.animateFloat(-14f, 14f, infiniteRepeatable(tween(350), RepeatMode.Reverse), label = "angle")
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(18.dp, Alignment.CenterVertically)) {
         Box(Modifier.size(140.dp).clip(CircleShape).background(Palette.ink), contentAlignment = Alignment.Center) {
-            Box(Modifier.rotate(if (state.judging) angle else 0f)) { JudgeIcon(Palette.surface, size = 76.dp) }
+            Box(Modifier.rotate(if (state.judging && parked) angle else 0f)) { JudgeIcon(Palette.surface, size = 76.dp) }
         }
         Button(
             onClick = { vm.judge() },
@@ -249,11 +249,14 @@ private fun VerdictCard(state: JudgeState, parked: Boolean, vm: JudgeViewModel, 
     }
 }
 
-/** 말 받는 공. 듣는 중엔 숨 쉬듯 커졌다 작아진다 */
+/**
+ * 말 받는 공. 듣는 중엔 숨 쉬듯 커졌다 작아진다.
+ * 주행 중(animate=false)엔 반복 애니메이션 없이 테두리로만 듣는 중을 보인다(Pleos 주행 안전: 움직이는 요소 최소화)
+ */
 @Composable
-private fun Ball(label: String, color: Color, onColor: Color, listening: Boolean, size: Int, description: String, onClick: () -> Unit) {
+private fun Ball(label: String, color: Color, onColor: Color, listening: Boolean, animate: Boolean, size: Int, description: String, onClick: () -> Unit) {
     val pulse = rememberInfiniteTransition(label = "ball")
-    val s by pulse.animateFloat(1f, if (listening) 1.1f else 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "s")
+    val s by pulse.animateFloat(1f, if (listening && animate) 1.1f else 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "s")
     Box(
         Modifier.size(size.dp).scale(s).clip(CircleShape).background(color)
             .then(if (listening) Modifier.border(5.dp, Palette.ink.copy(alpha = 0.35f), CircleShape) else Modifier)

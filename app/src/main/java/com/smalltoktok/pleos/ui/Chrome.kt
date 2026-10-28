@@ -47,7 +47,7 @@ enum class Tab(val label: String, val icon: @Composable (Color) -> Unit) {
 }
 
 /** 탭 바 밖의 화면 (헤더 버튼으로 연다) */
-enum class Extra(val label: String) { Settings("설정") }
+enum class Extra(val label: String) { Settings("설정"), Notices("오픈소스·저작권 고지") }
 
 // 탭 바는 아이콘 4개가 너무 벌어지지 않게 폭을 제한한다. 헤더는 화면 폭에 맞춰 늘어난다(2026-10-23 피드백)
 private val TabBarMaxWidth = 720.dp

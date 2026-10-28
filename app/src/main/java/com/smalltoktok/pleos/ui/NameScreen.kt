@@ -33,7 +33,13 @@ import com.smalltoktok.pleos.ui.theme.Palette
  * 주행 중에는 키보드 대신 라임 공을 눌러 말로 입력한다(Pleos 가이드: 키보드보다 음성 우선).
  */
 @Composable
-fun NameScreen(vm: ProfileViewModel, parked: Boolean, asSettings: Boolean = false, onDone: () -> Unit = {}) {
+fun NameScreen(
+    vm: ProfileViewModel,
+    parked: Boolean,
+    asSettings: Boolean = false,
+    onNotices: () -> Unit = {},
+    onDone: () -> Unit = {},
+) {
     val state by vm.state.collectAsStateWithLifecycle()
     var family by rememberSaveable(state.family) { mutableStateOf(state.family.orEmpty()) }
     var given by rememberSaveable(state.given) { mutableStateOf(state.given.orEmpty()) }
@@ -89,6 +95,11 @@ fun NameScreen(vm: ProfileViewModel, parked: Boolean, asSettings: Boolean = fals
             if (!asSettings) {
                 OutlinedButton(onClick = { vm.skip() }, modifier = Modifier.fillMaxWidth().height(72.dp)) {
                     Text("나중에 할게요", style = MaterialTheme.typography.labelLarge)
+                }
+            } else if (parked) {
+                // 글이 많은 고지 화면은 정차 중에만 연다
+                OutlinedButton(onClick = onNotices, modifier = Modifier.fillMaxWidth().height(72.dp)) {
+                    Text("오픈소스·저작권 고지", style = MaterialTheme.typography.labelLarge)
                 }
             }
         }
