@@ -10,6 +10,12 @@ val secrets = Properties().apply {
     rootProject.file("secrets.properties").takeIf { it.exists() }?.inputStream()?.use(::load)
 }
 
+// release 서명 키. 커밋하지 않는 keystore.properties(storeFile, storePassword, keyAlias, keyPassword)에서 읽는다.
+// 키 파일은 저장소 밖에 두고 따로 백업한다 (잃어버리면 같은 앱으로 업데이트할 수 없다)
+val keystore = Properties().apply {
+    rootProject.file("keystore.properties").takeIf { it.exists() }?.inputStream()?.use(::load)
+}
+
 android {
     namespace = "com.smalltoktok.pleos"
     // AAOS Car API (CarUxRestrictions). 차량 플랫폼에 들어 있는 공유 라이브러리라 APK에 넣지 않는다
@@ -37,8 +43,21 @@ android {
         buildConfig = true
     }
 
+    signingConfigs {
+        if (keystore.getProperty("storeFile") != null) {
+            create("release") {
+                storeFile = file(keystore.getProperty("storeFile"))
+                storePassword = keystore.getProperty("storePassword")
+                keyAlias = keystore.getProperty("keyAlias")
+                keyPassword = keystore.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // keystore.properties가 없으면 서명 없이 빌드된다 (설치하려면 서명이 필요)
+            signingConfig = signingConfigs.findByName("release")
             optimization {
                 enable = true
                 packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
@@ -66,7 +85,6 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
     implementation(libs.okhttp)
-    implementation(libs.pleos.navihelper)
     implementation(libs.pleos.stt)
     implementation(libs.pleos.tts)
     debugImplementation(libs.compose.ui.tooling)

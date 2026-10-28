@@ -14,8 +14,6 @@ navigationCompose = "2.10.1"
 lifecycle = "2.10.0"
 coil = "3.6.2"
 okhttp = "4.12.0"
-pleosVehicle = "2.3.2"
-pleosNaviHelper = "3.0.5"
 pleosSpeech = "3.3.1"
 
 [libraries]
@@ -37,8 +35,6 @@ lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-ru
 coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }
 coil-network-okhttp = { group = "io.coil-kt.coil3", name = "coil-network-okhttp", version.ref = "coil" }
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
-pleos-vehicle = { group = "ai.pleos.playground", name = "Vehicle", version.ref = "pleosVehicle" }
-pleos-navihelper = { group = "ai.pleos.playground", name = "NaviHelper", version.ref = "pleosNaviHelper" }
 pleos-stt = { group = "ai.pleos.playground", name = "SpeechToText", version.ref = "pleosSpeech" }
 pleos-tts = { group = "ai.pleos.playground", name = "TextToSpeech", version.ref = "pleosSpeech" }
 
