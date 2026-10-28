@@ -26,3 +26,6 @@ secrets.properties
 
 # 전달용으로 뽑은 APK (커밋하지 않는다)
 apk-out/
+
+# Android Studio "Generate Signed APK" 결과물 (APK·R8 mapping)
+/app/release/
