@@ -97,7 +97,7 @@
 |---|---|
 | RAM | ✅ 대화 중 TOTAL PSS 약 134MB |
 | 앱 실행 | ✅ cold start 3회 평균 약 2.1초 (swiftshader 렌더러에서는 7초) |
-| DO·주행 전환 | ✅ Pleos Virtual Console(`adb forward tcp:8088 tcp:8088` → `http://127.0.0.1:8088/`)에서 P → D: 앱이 막히지 않고 주행 화면으로 바뀜, 열어 둔 영상은 닫힘. D → P: 원래 화면으로 돌아옴. 속도는 안 올려 봄. `cmd car_service inject-vhal-event`는 user 빌드라 막힘 |
+| DO·주행 전환 | ✅ Pleos Virtual Console(`adb forward tcp:8088 tcp:8088` → `http://127.0.0.1:8088/`)에서 P → D: 앱이 막히지 않고 주행 화면으로 바뀜, 열어 둔 영상은 닫힘. D → P: 원래 화면으로 돌아옴. 속도는 안 올려 봄. `cmd car_service inject-vhal-event`는 user 빌드라 막힘. ⚠️ 2026-10-27(PC방)·10-28(노트북)부터는 같은 조건(속도 0, P → D)에서 시스템이 "주행 중에는 사용할 수 없습니다"로 앱을 막음. 10/24에 통과한 커밋(1a31e5f)을 다시 빌드해 설치해도 똑같이 막혀서, 코드가 아니라 에뮬레이터 쪽 환경(이미지·정책) 변화로 판단. 매니페스트 DO 선언은 release APK에도 들어 있음. 주최 측 문의 필요 |
 | 백그라운드 | ✅ 하단 바로 다른 앱을 띄우면 재생·오디오 포커스·마이크가 모두 꺼짐. 대화는 끝나고 코칭·습관 태그가 staging에 저장됨. ❓ 돌아왔을 때 코칭 화면이 아니라 첫 화면이 보였음(재현 필요). HOME 키는 Pleos에서 앱을 내리지 않아 시험 방법으로 못 씀 |
 | 첫 음절 | ✅ 잘리지 않음 (8번 필요 없음) |
 | 영상 | ❌ 렌더러 auto·swiftshader·host·angle 모두 소리만 나고 화면이 검음. 로그에 `c2.goldfish.vp9.decoder` "MediaCodec discarded an unknown buffer" 반복 → 에뮬레이터 하드웨어 VP9 디코더 출력이 WebView에 그려지지 않는 것으로 추정. Pleos에는 유튜브 앱·브라우저가 없어 "다른 앱으로 열기"도 보이지 않음. → 앱 안 플레이어(WebView)를 없애고, 영상은 유튜브 앱으로만 연다. 영상 카드는 그대로 두고, 눌렀을 때 유튜브 링크를 받을 앱이 없으면(Pleos) "유튜브 앱을 설치한 뒤 다시 눌러 주세요" 안내를 띄운다(2026-10-24) |
