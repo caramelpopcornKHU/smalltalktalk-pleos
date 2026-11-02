@@ -66,6 +66,8 @@ import coil3.compose.AsyncImage
 import com.smalltoktok.pleos.data.Feedback
 import com.smalltoktok.pleos.data.Scenario
 import com.smalltoktok.pleos.ui.theme.Palette
+import com.smalltoktok.pleos.vehicle.Trip
+import com.smalltoktok.pleos.vehicle.TripKind
 
 /**
  * 앱 진입. 탭 화면은 헤더 캡슐 + 하단 탭 바 사이에 두고,
@@ -115,7 +117,11 @@ fun App(vm: TalkViewModel) {
                         // 주행으로 바뀌면 설정으로 돌아간다 (글이 많은 화면)
                         Extra.Notices -> if (parked) NoticesScreen() else LaunchedEffect(Unit) { extra = Extra.Settings }
                         null -> when (tab) {
-                            Tab.Evening -> HomeScreen(state, parked, vm)
+                            Tab.Evening -> HomeScreen(state, parked, vm) {
+                                // 출근길: 아침 카드 탭으로 가서 추천 브리핑을 바로 들려준다
+                                tab = Tab.Morning
+                                morningVm.togglePlay()
+                            }
                             Tab.Reflect -> ReflectScreen(reflectVm, parked) { vm.startNew(it) }
                             Tab.Morning -> MorningScreen(morningVm, parked)
                             Tab.Habits -> HabitScreen(habitVm, parked, profile.given) { distance -> vm.startForDistance(distance) }
@@ -158,8 +164,9 @@ private fun SplashScreen() {
  * 정차 중: 상황 카드 목록.
  */
 @Composable
-private fun HomeScreen(state: TalkState, parked: Boolean, vm: TalkViewModel) {
+private fun HomeScreen(state: TalkState, parked: Boolean, vm: TalkViewModel, onMorning: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+        state.trip?.let { TripBar(it, parked, onMorning) }
         when {
             state.loadingScenarios -> Loading("상대를 불러오고 있어요")
             state.scenarios.isEmpty() -> {
@@ -167,23 +174,60 @@ private fun HomeScreen(state: TalkState, parked: Boolean, vm: TalkViewModel) {
                 BigButton("다시 불러오기") { vm.loadScenarios() }
             }
             // 주행 중: 오늘의 상대 사진과 큰 시작 버튼만 (목록을 읽고 고르는 일은 정차 중에)
-            !parked -> state.today?.let { DrivingHome(it, state, vm, Modifier.weight(1f)) }
+            !parked -> state.partner?.let { DrivingHome(it, state, vm, Modifier.weight(1f)) }
             else -> BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                 // 2026-10-23 시안(docs/prototypes/today-partner.html): 넓은 창은 왼쪽 큰 세로 카드(바로 시작하기·다른 사람)
                 // + 오른쪽 사진 카드 목록, 좁은 창은 A안(세로 카드 위, 목록 아래). 사진을 세로 그대로 써서 얼굴이 잘리지 않게.
                 // 처음에 넣은 흐린 후보 카드 둘은 써 보고 뺐다(같은 날 피드백)
                 if (maxWidth > WIDE_HOME) {
                     Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                        state.today?.let { t ->
+                        state.partner?.let { t ->
                             TodayPartner(t, parked = true, state, vm, Modifier.fillMaxHeight().padding(bottom = 8.dp).aspectRatio(3f / 4f))
                         }
                         ScenarioGrid(state, vm, Modifier.weight(1f).fillMaxHeight(), today = null)
                     }
                 } else {
-                    ScenarioGrid(state, vm, Modifier.fillMaxSize(), today = state.today)
+                    ScenarioGrid(state, vm, Modifier.fillMaxSize(), today = state.partner)
                 }
             }
         }
+    }
+}
+
+/**
+ * 내비 목적지 한 줄 (2026-11-02, A안 "차의 맥락 쓰기"): "회사 가는 길 · 도착까지 23분".
+ * 출근길이면 오른쪽에 "오늘의 소재 듣기"(아침 카드 브리핑), 퇴근길이면 하루를 정리하는 한마디를 붙인다.
+ * 그 밖의 목적지는 아래 상대 카드가 그 자리에 맞는 상황으로 바뀐다(TripMatch).
+ */
+@Composable
+private fun TripBar(trip: Trip, parked: Boolean, onMorning: () -> Unit) = Row(
+    Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(Palette.surface).padding(horizontal = 24.dp, vertical = 12.dp),
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(16.dp),
+) {
+    Box(Modifier.size(14.dp).clip(CircleShape).background(Palette.accent))
+    val place = when (trip.kind) {
+        TripKind.ToOffice -> "회사"
+        TripKind.ToHome -> "집"
+        TripKind.Other -> trip.name.ifBlank { "목적지" }
+    }
+    Column(Modifier.weight(1f)) {
+        Text(
+            listOfNotNull("$place 가는 길", trip.remainMin?.let { "도착까지 ${it}분" }).joinToString(" · "),
+            style = MaterialTheme.typography.titleLarge,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+        )
+        if (trip.kind == TripKind.ToHome && parked) {
+            Text("오늘 하루 대화, 한 판 되짚어 볼까요?", style = MaterialTheme.typography.bodyLarge, color = Palette.muted)
+        }
+    }
+    if (trip.kind == TripKind.ToOffice) {
+        Button(
+            onClick = onMorning,
+            modifier = Modifier.height(if (parked) 56.dp else 76.dp),
+            shape = RoundedCornerShape(40.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Palette.ink, contentColor = Palette.surface),
+        ) { Text("오늘의 소재 듣기", style = MaterialTheme.typography.labelLarge) }
     }
 }
 
@@ -230,7 +274,7 @@ private fun TodayPartner(s: Scenario, parked: Boolean, state: TalkState, vm: Tal
             ),
         )
         Text(
-            "오늘의 상대",
+            partnerLabel(s, state),
             style = MaterialTheme.typography.labelLarge,
             color = Palette.onAccent,
             modifier = Modifier.padding(24.dp).clip(CircleShape).background(Palette.accent).padding(horizontal = 18.dp, vertical = 10.dp),
@@ -278,6 +322,9 @@ private fun TodayPartner(s: Scenario, parked: Boolean, state: TalkState, vm: Tal
     }
 }
 
+/** 목적지에 맞춰 고른 상대면 "도착 전에 연습", 아니면 "오늘의 상대" */
+private fun partnerLabel(s: Scenario, state: TalkState) = if (s.id == state.tripPartnerId) "도착 전에 연습" else "오늘의 상대"
+
 /**
  * 주행 중 홈 (2026-10-26 피드백 두 번): 가로로 꽉 찬 사진은 얼굴이 반쯤 잘렸고, 카드 옆에 스위치를 따로 두니 분리돼 보였다.
  * 세로에 가까운 카드 하나에 사진을 채우고, 이름표는 위로, 큰 스위치(88dp)와 시작 버튼(96dp)은 아래(얼굴 아래 상반신 위)에 넣는다.
@@ -303,7 +350,7 @@ private fun DrivingHome(s: Scenario, state: TalkState, vm: TalkViewModel, modifi
             )
             Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    "오늘의 상대",
+                    partnerLabel(s, state),
                     style = MaterialTheme.typography.labelLarge,
                     color = Palette.onAccent,
                     modifier = Modifier.clip(CircleShape).background(Palette.accent).padding(horizontal = 18.dp, vertical = 10.dp),

@@ -9,6 +9,8 @@ import com.smalltoktok.pleos.data.Feedback
 import com.smalltoktok.pleos.data.Message
 import com.smalltoktok.pleos.data.Metrics
 import com.smalltoktok.pleos.data.Scenario
+import com.smalltoktok.pleos.vehicle.Trip
+import com.smalltoktok.pleos.vehicle.TripMatch
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -52,10 +54,17 @@ data class TalkState(
     val difficulty: Difficulty = Difficulty.Normal,
     /** 지금 대화의 난이도 (대화 화면 위 표시) */
     val talkDifficulty: Difficulty = Difficulty.Normal,
+    /** 내비가 안내 중인 목적지 (2026-11-02). 내비가 없거나 안내 중이 아니면 null */
+    val trip: Trip? = null,
+    /** 목적지에 맞춰 고른 상대. "다른 사람"을 누르면 비우고 무작위 상대로 돌아간다 */
+    val tripPartnerId: String? = null,
 ) {
     val shared get() = scenarios.filter { !it.mine }
     val mine get() = scenarios.filter { it.mine }
     val today get() = scenarios.firstOrNull { it.id == todayId }
+    val tripPartner get() = scenarios.firstOrNull { it.id == tripPartnerId }
+    /** 홈 맨 위 상대: 목적지에 맞는 상대가 있으면 그 사람, 없으면 오늘의 상대 */
+    val partner get() = tripPartner ?: today
 }
 
 /**
@@ -88,6 +97,20 @@ class TalkViewModel(app: Application) : AndroidViewModel(app) {
             )
         }
         loadScenarios()
+        // 목적지가 바뀔 때마다 그 자리에 맞는 상대를 다시 고른다
+        viewModelScope.launch {
+            services.navi.trip.collect { trip ->
+                val before = _state.value.trip
+                val sameDestination = before != null && trip != null && before.name == trip.name && before.kind == trip.kind
+                _state.update { it.copy(trip = trip) }
+                // 남은 시간만 바뀐 거면 상대를 그대로 둔다 ("다른 사람"으로 바꾼 상대도 유지)
+                if (!sameDestination) matchTrip()
+            }
+        }
+    }
+
+    private fun matchTrip() = _state.update { st ->
+        st.copy(tripPartnerId = st.trip?.let { TripMatch.pick(it, st.shared)?.id })
     }
 
     /** 말투를 바꾼다. 주행 중이면 화면을 다시 보지 않아도 되게 소리로 알려준다 */
@@ -130,7 +153,7 @@ class TalkViewModel(app: Application) : AndroidViewModel(app) {
             // 새로 섞은 첫 장이 방금 본 상대면 맨 뒤로 보낸다
             if (todayBag.size > 1 && todayBag.first() == st.todayId) todayBag.addLast(todayBag.removeFirst())
         }
-        st.copy(todayId = todayBag.removeFirstOrNull())
+        st.copy(todayId = todayBag.removeFirstOrNull(), tripPartnerId = null)
     }
 
     /** 연습을 마치면 이전 기록보다 많이 주고받았을 때만 최고 기록을 바꾼다 */
@@ -148,6 +171,7 @@ class TalkViewModel(app: Application) : AndroidViewModel(app) {
                 .onSuccess { list ->
                     _state.update { it.copy(scenarios = list, loadingScenarios = false, booted = true) }
                     if (_state.value.today == null) shuffleToday()
+                    if (_state.value.tripPartnerId == null) matchTrip()
                 }
                 .onFailure { e -> _state.update { it.copy(loadingScenarios = false, booted = true, error = messageOf(e)) } }
         }
@@ -244,7 +268,7 @@ class TalkViewModel(app: Application) : AndroidViewModel(app) {
     fun startForDistance(distance: String?) {
         val st = _state.value
         val pool = st.shared.filter { distance == null || it.distance == distance }
-        val pick = pool.filter { it.id !in st.rallies }.randomOrNull() ?: pool.randomOrNull() ?: st.today ?: st.shared.randomOrNull()
+        val pick = pool.filter { it.id !in st.rallies }.randomOrNull() ?: pool.randomOrNull() ?: st.partner ?: st.shared.randomOrNull()
         pick?.let { start(it) }
     }
 

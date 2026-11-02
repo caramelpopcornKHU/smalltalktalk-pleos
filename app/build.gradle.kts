@@ -87,6 +87,7 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.pleos.stt)
     implementation(libs.pleos.tts)
+    implementation(libs.pleos.navi.helper)
     debugImplementation(libs.compose.ui.tooling)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.espresso.core)

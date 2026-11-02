@@ -15,6 +15,7 @@ lifecycle = "2.10.0"
 coil = "3.6.2"
 okhttp = "4.12.0"
 pleosSpeech = "3.3.1"
+pleosNaviHelper = "3.0.5"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -37,6 +38,7 @@ coil-network-okhttp = { group = "io.coil-kt.coil3", name = "coil-network-okhttp"
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 pleos-stt = { group = "ai.pleos.playground", name = "SpeechToText", version.ref = "pleosSpeech" }
 pleos-tts = { group = "ai.pleos.playground", name = "TextToSpeech", version.ref = "pleosSpeech" }
+pleos-navi-helper = { group = "ai.pleos.playground", name = "NaviHelper", version.ref = "pleosNaviHelper" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

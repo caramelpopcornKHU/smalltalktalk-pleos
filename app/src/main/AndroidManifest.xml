@@ -8,6 +8,8 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="pleos.car.permission.STT_SERVICE" />
     <uses-permission android:name="pleos.car.permission.TTS_SERVICE" />
+    <!-- 내비 목적지·남은 시간 읽기 (vehicle/Navi.kt) -->
+    <uses-permission android:name="pleos.car.permission.NAVI_ROUTE" />
 
     <!-- 영상을 유튜브 앱(또는 브라우저)으로 열 수 있는지 확인하려면 필요 (Android 11+ 패키지 공개 범위).
          열 앱이 없으면(Pleos) 유튜브 설치 안내를 띄운다 -->

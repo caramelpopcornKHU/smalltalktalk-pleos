@@ -3,6 +3,7 @@ package com.smalltoktok.pleos
 import android.content.Context
 import com.smalltoktok.pleos.data.Api
 import com.smalltoktok.pleos.vehicle.Driving
+import com.smalltoktok.pleos.vehicle.Navi
 import com.smalltoktok.pleos.voice.Voice
 
 /**
@@ -13,6 +14,7 @@ class Services private constructor(context: Context) {
     val api = Api(context)
     val voice = Voice(context).also { it.initialize() }
     val driving = Driving(context).also { it.start() }
+    val navi = Navi(context).also { it.start() }
 
     companion object {
         @Volatile private var instance: Services? = null
