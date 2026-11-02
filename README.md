@@ -36,23 +36,23 @@
 |---|---|
 | 저녁 연습 | "누구와, 어떤 자리" 상황을 골라 AI 상대와 목소리로 자유 대화. 끝나면 좋았던 한마디와 "한마디 더 얹어 볼 순간"을 코칭해요. 반말·난이도(하·중·상)를 고를 수 있어요. |
 | 아쉬운 대화 | 아쉬웠던 대화를 말로 털어놓으면 추천 한마디 3개를 들려주고, 그 상대와 다시 연습해요. |
-| 아침 카드 | 날씨·영화·스포츠 같은 오늘의 소재와 던질 말을 음성 브리핑으로 들려줘요. |
+| 아침 카드 | 날씨·영화·스포츠 같은 오늘의 소재와 던질 말을 음성 브리핑으로 들려줘요. 월·수·금 "그거 아세요?"는 신기한 지식과 왜 그런지, 언제 어떻게 꺼내면 자연스러운지까지 알려 줘요. |
 | 나의 대화 습관 | 최근 7일 대화에서 잘한 것과 먼저 연습할 것을 리포트로 보여 주고 읽어 줘요. |
 | AI 판사 | 여럿이 탄 차에서 장난스러운 논쟁을 판결해 주는 재미 기능이에요. |
 | 내비 연동 (저녁 연습 홈) | 내비 안내 중이면 "○○ 가는 길 · 도착까지 n분"을 보여 줘요. 즐겨찾기 회사로 가면 "오늘의 소재 듣기", 집으로 가면 "털어놓기"를 권하고, 목적지 이름(미용실·카페·등산로 등)에 맞는 상대를 "도착 전에 연습"으로 골라 줘요. 목적지는 앱 안에서만 쓰고 서버로 보내지 않아요. |
-| 말동무 (저녁 연습 홈) | 인물 사진·대화 스타일(수다쟁이 친구·다정한 리스너·장난꾸러기·차분한 선배)·말투를 골라 만든 말동무와 수다를 떨어요. 오늘의 소재로 먼저 말을 걸고, 끝나도 코칭이나 기록이 남지 않아요. |
+| 말동무 (저녁 연습 홈) | 인물 사진·대화 스타일(수다쟁이 친구·다정한 리스너·장난꾸러기·차분한 선배)·말투를 골라 만든 말동무와 수다를 떨어요. 말동무는 자기만의 일상(하는 일·취미)이 있어서 그 이야기나 지금 시간·출퇴근길로 먼저 말을 걸고, 끝나도 코칭이나 기록이 남지 않아요. |
 
 운전 중에는 화면이 주행용으로 바뀌어요. 글이 많은 화면은 숨기고, 큰 버튼과 음성으로만 쓸 수 있어요.
 
 ## 실행 방법
 
 1. Pleos Connect 에뮬레이터를 켜요.
-2. 아래 두 APK 중 하나를 설치해요. 두 파일은 내용이 같은 서명된 release 빌드(v1.1)예요(GitHub Release는 첨부 파일 이름의 한글을 지워서 영문 이름으로 올렸어요).
+2. 아래 두 APK 중 하나를 설치해요. 두 파일은 내용이 같은 서명된 release 빌드(v1.2)예요(GitHub Release는 첨부 파일 이름의 한글을 지워서 영문 이름으로 올렸어요).
 
    | 위치 | 파일 |
    |---|---|
    | 저장소 `apk/` 폴더 | `apk/정형민_smalltalktalk_release.apk` |
-   | GitHub Release [v1.1.0](https://github.com/caramelpopcornKHU/smalltalktalk-pleos/releases/tag/v1.1.0) | `ChungHyungmin_smalltalktalk_release.apk` |
+   | GitHub Release [v1.2.0](https://github.com/caramelpopcornKHU/smalltalktalk-pleos/releases/tag/v1.2.0) | `ChungHyungmin_smalltalktalk_release.apk` |
 
    ```bash
    adb install apk/정형민_smalltalktalk_release.apk
@@ -74,8 +74,8 @@
 ## APK 위치
 
 - 저장소: [`apk/정형민_smalltalktalk_release.apk`](apk/)
-- GitHub Release: https://github.com/caramelpopcornKHU/smalltalktalk-pleos/releases/tag/v1.1.0 (`ChungHyungmin_smalltalktalk_release.apk`, 같은 파일)
-- 이전 버전 v1.0.0(내비 연동·말동무 전): https://github.com/caramelpopcornKHU/smalltalktalk-pleos/releases/tag/v1.0.0
+- GitHub Release: https://github.com/caramelpopcornKHU/smalltalktalk-pleos/releases/tag/v1.2.0 (`ChungHyungmin_smalltalktalk_release.apk`, 같은 파일)
+- 이전 버전: [v1.1.0](https://github.com/caramelpopcornKHU/smalltalktalk-pleos/releases/tag/v1.1.0)(말동무 프로필·지식 카드 개편 전), [v1.0.0](https://github.com/caramelpopcornKHU/smalltalktalk-pleos/releases/tag/v1.0.0)(내비 연동·말동무 전)
 
 ## 사용 기술
 
