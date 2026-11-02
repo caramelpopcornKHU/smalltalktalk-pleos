@@ -174,14 +174,16 @@ private fun Player(state: MorningState, vm: MorningViewModel, large: Boolean, sh
                 style = MaterialTheme.typography.titleMedium, color = Palette.muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
         }
+        // 그거 아세요?는 던지는 말 대신 지식 자체를 크게, 그 아래 왜 그런지 (2026-11-02)
         Text(
-            card.line(state.tone),
+            if (card.isFact) card.topic else card.line(state.tone),
             style = MaterialTheme.typography.headlineMedium.copy(
                 fontSize = if (large) 34.sp else 30.sp, lineHeight = if (large) 46.sp else 42.sp, fontWeight = FontWeight.Bold,
             ),
             maxLines = if (large) 3 else 4, overflow = TextOverflow.Ellipsis,
         )
-        if (showBranches) Branches(card, expanded = true)
+        if (card.isFact && !large) card.why?.let { Text(it, style = MaterialTheme.typography.bodyLarge, color = Palette.muted) }
+        if (showBranches) Branches(card, state.tone, expanded = true)
         if (large && !playing) {
             Text("운전 중에는 소리로 들려드려요. 이어가는 말까지 읽어 줘요.", style = MaterialTheme.typography.bodyLarge, color = Palette.muted)
         }
@@ -203,13 +205,21 @@ private fun Player(state: MorningState, vm: MorningViewModel, large: Boolean, sh
     }
 }
 
-/** 상대 반응별 두 갈래 (대본 형식: 이름 | 말). 점프 포인트 원칙을 그대로 담는다 */
+/**
+ * 상대 반응별 두 갈래 (대본 형식: 이름 | 말). 점프 포인트 원칙을 그대로 담는다.
+ * 그거 아세요?는 "이럴 때 꺼내 보세요"(상황) → "이렇게 꺼내기"(그 상황에 걸어 꺼내는 말)
+ */
 @Composable
-private fun Branches(card: MorningCard, expanded: Boolean) {
+private fun Branches(card: MorningCard, tone: Tone, expanded: Boolean) {
     if (!expanded) return
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        BranchLine("짧게 받을 때", card.bridge)
-        card.ifOpen?.let { BranchLine("얘기를 꺼낼 때", it) }
+        if (card.isFact) {
+            card.whenToUse?.let { BranchLine("이럴 때", it) }
+            BranchLine("이렇게 꺼내기", card.line(tone))
+        } else {
+            BranchLine("짧게 받을 때", card.bridge)
+            card.ifOpen?.let { BranchLine("얘기를 꺼낼 때", it) }
+        }
         card.sourceName?.let { Text("출처 $it", style = MaterialTheme.typography.bodyMedium, color = Palette.muted) }
     }
 }
@@ -231,13 +241,17 @@ private fun CardView(card: MorningCard, tone: Tone, expanded: Boolean, onToggle:
             "${MORNING_CATEGORY_LABELS[card.category] ?: card.category} · ${card.shownHook}",
             style = MaterialTheme.typography.labelLarge, color = Palette.muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
-        Text(card.line(tone), style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold), maxLines = 3, overflow = TextOverflow.Ellipsis)
         Text(
-            if (expanded) "▴ 접기" else "▾ 상대 반응별 이어가기",
+            if (card.isFact) card.topic else card.line(tone),
+            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold), maxLines = 3, overflow = TextOverflow.Ellipsis,
+        )
+        if (card.isFact) card.why?.let { Text(it, style = MaterialTheme.typography.bodyLarge, color = Palette.muted, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+        Text(
+            if (expanded) "▴ 접기" else if (card.isFact) "▾ 언제, 어떻게 꺼낼까" else "▾ 상대 반응별 이어가기",
             style = MaterialTheme.typography.labelLarge, color = Palette.ink,
             modifier = Modifier.clip(CircleShape).clickable(onClick = onToggle).padding(vertical = 10.dp),
         )
-        Branches(card, expanded)
+        Branches(card, tone, expanded)
     }
 }
 

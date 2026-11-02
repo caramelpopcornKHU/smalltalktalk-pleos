@@ -12,6 +12,7 @@ import com.smalltoktok.pleos.data.Message
 import com.smalltoktok.pleos.data.Metrics
 import com.smalltoktok.pleos.data.Scenario
 import com.smalltoktok.pleos.vehicle.Trip
+import com.smalltoktok.pleos.vehicle.TripKind
 import com.smalltoktok.pleos.vehicle.TripMatch
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -193,13 +194,17 @@ class TalkViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** 말투만 바꾸면 같은 사람이라 프로필을 그대로 두고, 사진·스타일을 바꾸면 새 사람이라 다시 짓는다 */
     fun saveBuddy(config: BuddyConfig) {
-        config.save(prefs)
-        _state.update { it.copy(buddy = config) }
+        val before = _state.value.buddy
+        val same = before != null && before.characterId == config.characterId && before.style == config.style
+        val next = config.copy(persona = if (same) before?.persona else null)
+        next.save(prefs)
+        _state.update { it.copy(buddy = next) }
     }
 
     /**
-     * 말동무와 수다 (2026-11-02): 연습과 같은 듣기·말하기 고리를 쓰되, 말동무가 오늘의 소재로 먼저 말을 걸고
+     * 말동무와 수다 (2026-11-02): 연습과 같은 듣기·말하기 고리를 쓰되, 말동무가 자기 일상이나 지금 상황으로 먼저 말을 걸고
      * 최대 20번까지 이어 간다. 끝나면 코칭 없이 홈으로 돌아간다(평가받는 느낌을 없앤다).
      */
     fun startBuddy() {
@@ -219,7 +224,17 @@ class TalkViewModel(app: Application) : AndroidViewModel(app) {
         }
         loop = viewModelScope.launch {
             try {
-                val started = api.buddyStart(config.characterId, config.style.key, config.casual)
+                // 출퇴근길이면 알려 주고(목적지 이름은 보내지 않는다), 처음이면 서버가 지은 프로필을 저장해 둔다
+                val trip = when (_state.value.trip?.kind) {
+                    TripKind.ToOffice -> "office"
+                    TripKind.ToHome -> "home"
+                    else -> null
+                }
+                val (started, persona) = api.buddyStart(config.characterId, config.style.key, config.casual, config.persona, trip)
+                if (config.persona == null && persona != null) {
+                    val saved = config.copy(persona = persona).also { it.save(prefs) }
+                    _state.update { it.copy(buddy = saved) }
+                }
                 conversationId = started.conversationId
                 _state.update { it.copy(maxPartnerTurns = started.maxPartnerTurns) }
                 var say = started.firstSay

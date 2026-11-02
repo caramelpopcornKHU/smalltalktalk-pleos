@@ -65,6 +65,8 @@ data class Metrics(
 
 /** audioUrl: 서버(Google Chirp)가 합성한 음성 파일. 합성에 실패하면 null이고 Pleos TTS로 읽는다 */
 data class Started(val conversationId: String, val maxPartnerTurns: Int, val firstSay: String, val firstAudioUrl: String?)
+/** 말동무 첫 마디 + 서버가 지은(또는 그대로 돌려준) 말동무 프로필 */
+data class BuddyStarted(val started: Started, val persona: String?)
 data class PartnerTurn(val say: String, val end: Boolean, val audioUrl: String?)
 
 /** 연습 상대 인물 풀 (말동무 사진 고르기). gender: f / m */
@@ -142,7 +144,13 @@ data class MorningCard(
     val hook: String? = null,
     /** 상대가 이야기를 꺼낼 때의 점프 포인트 질문 */
     val ifOpen: String? = null,
+    /** 그거 아세요?만 (2026-11-02): 왜 그런지 한 줄, 이럴 때 꺼내 보세요 */
+    val why: String? = null,
+    val whenToUse: String? = null,
 ) {
+    /** 신기한 지식 카드: 던지는 말이 아니라 "알아 두면 써먹는 지식"으로 보여주고 읽는다 */
+    val isFact get() = category == "fun-fact" && whenToUse != null
+
     /** 카드 앞면·브리핑에 쓰는 소재. 예전 카드는 사실 요약(topic)으로 */
     val shownHook get() = hook ?: topic
 }
@@ -348,7 +356,7 @@ class Api(context: Context) {
 
     suspend fun morningCards(): List<MorningCard> {
         val today = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul")).toString()
-        val select = "id,coworker_line,stranger_line,bridge,hook,if_open,morning_topic!inner(date,category,topic,source)"
+        val select = "id,coworker_line,stranger_line,bridge,hook,if_open,why,when_to_use,morning_topic!inner(date,category,topic,source)"
         val arr = JSONArray(cachedGet("/rest/v1/morning_card?select=$select&owner_id=is.null&morning_topic.date=eq.$today", "morning:$today"))
         return (0 until arr.length()).map { i ->
             val o = arr.getJSONObject(i)
@@ -363,6 +371,8 @@ class Api(context: Context) {
                 sourceName = t.optJSONObject("source")?.optStringOrNull("name"),
                 hook = o.optStringOrNull("hook"),
                 ifOpen = o.optStringOrNull("if_open"),
+                why = o.optStringOrNull("why"),
+                whenToUse = o.optStringOrNull("when_to_use"),
             )
         }.sortedBy { MORNING_ORDER.indexOf(it.category).let { i -> if (i < 0) 99 else i } }
     }
@@ -417,17 +427,24 @@ class Api(context: Context) {
             .map { Character(it.getString("id"), it.getString("gender"), it.getString("age_band")) }
     }
 
-    /** 말동무 첫 마디 (Edge Function buddy). conversationId 자리에 말동무 대화 id를 담는다 */
-    suspend fun buddyStart(characterId: String, style: String, casual: Boolean): Started {
-        val o = buddy(
-            JSONObject().put("action", "start").put("characterId", characterId).put("style", style)
-                .put("speechLevel", if (casual) "casual" else "formal"),
-        )
-        return Started(
-            conversationId = o.getString("chatId"),
-            maxPartnerTurns = o.getInt("maxPartnerTurns"),
-            firstSay = o.getJSONObject("first").getString("say"),
-            firstAudioUrl = audioUrl(o.getJSONObject("first").optStringOrNull("audioPath")),
+    /**
+     * 말동무 첫 마디 (Edge Function buddy). conversationId 자리에 말동무 대화 id를 담는다.
+     * persona: 기기에 저장해 둔 말동무 프로필(없으면 서버가 지어 돌려준다). trip: office / home (출퇴근길일 때만)
+     */
+    suspend fun buddyStart(characterId: String, style: String, casual: Boolean, persona: String?, trip: String?): BuddyStarted {
+        val body = JSONObject().put("action", "start").put("characterId", characterId).put("style", style)
+            .put("speechLevel", if (casual) "casual" else "formal")
+        persona?.let { body.put("persona", it) }
+        trip?.let { body.put("trip", it) }
+        val o = buddy(body)
+        return BuddyStarted(
+            Started(
+                conversationId = o.getString("chatId"),
+                maxPartnerTurns = o.getInt("maxPartnerTurns"),
+                firstSay = o.getJSONObject("first").getString("say"),
+                firstAudioUrl = audioUrl(o.getJSONObject("first").optStringOrNull("audioPath")),
+            ),
+            persona = o.optStringOrNull("persona"),
         )
     }
 

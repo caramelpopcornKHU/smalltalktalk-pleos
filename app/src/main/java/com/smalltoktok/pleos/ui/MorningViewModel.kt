@@ -201,6 +201,15 @@ class MorningViewModel(app: Application) : AndroidViewModel(app) {
                 val c = cards[i]
                 _state.update { it.copy(current = i, progress = if (mode == PlayMode.Single) null else (n + 1) to playlist.size) }
                 beep()
+                // 그거 아세요?는 지식 → 왜 → 이럴 때 → 그 상황에 걸어 꺼내는 말 순서로 (2026-11-02)
+                if (c.isFact) {
+                    say("오늘의 신기한 지식이에요. ${c.topic}.")
+                    if (mode != PlayMode.All) c.why?.let { say(it) }
+                    delay(PAUSE_MS)
+                    say("${c.whenToUse}, 이렇게 꺼내 보세요.")
+                    say(c.line(_state.value.tone))
+                    return@forEachIndexed
+                }
                 val lead = if (n == 0) "이렇게 던져 보세요." else "이번엔 이렇게요."
                 say("오늘은 ${c.shownHook} 얘기예요. $lead")
                 say(c.line(_state.value.tone))
@@ -209,7 +218,7 @@ class MorningViewModel(app: Application) : AndroidViewModel(app) {
                 say("대답이 짧으면, ${c.bridge}")
                 if (mode == PlayMode.Single) c.ifOpen?.let { say("얘기를 꺼내면, 이렇게 물어봐요. $it") }
             }
-            if (mode == PlayMode.Recommended) {
+            if (mode == PlayMode.Recommended && !cards[playlist.first()].isFact) {
                 val first = cards[playlist.first()]
                 say("오늘 하나만 챙긴다면, ${first.line(_state.value.tone)} 좋은 하루 보내세요.")
                 _state.update { it.copy(current = playlist.first()) }

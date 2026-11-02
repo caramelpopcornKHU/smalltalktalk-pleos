@@ -18,26 +18,30 @@ enum class BuddyStyle(val key: String, val label: String, val description: Strin
 /**
  * 말동무 설정: 사진(인물)·대화 스타일·말투. 이 기기에만 둔다(난이도·말투 스위치처럼).
  * 성별은 고른 인물에서 나온다(목소리도 인물 성별을 따른다).
+ * persona: 말동무의 일상 프로필(하는 일·취미·요즘 빠진 것). 처음 수다를 떨 때 서버가 짓고, 다음부터 그대로 보내
+ * 같은 사람으로 이어지게 한다(2026-11-02). 사진이나 스타일을 바꾸면 새 사람이라 다시 짓는다.
  */
-data class BuddyConfig(val characterId: String, val style: BuddyStyle, val casual: Boolean) {
+data class BuddyConfig(val characterId: String, val style: BuddyStyle, val casual: Boolean, val persona: String? = null) {
     val gender get() = characterId.first().toString()
 
     fun save(prefs: SharedPreferences) = prefs.edit()
         .putString(KEY_CHARACTER, characterId)
         .putString(KEY_STYLE, style.key)
         .putBoolean(KEY_CASUAL, casual)
+        .putString(KEY_PERSONA, persona)
         .apply()
 
     companion object {
         private const val KEY_CHARACTER = "buddy_character"
         private const val KEY_STYLE = "buddy_style"
         private const val KEY_CASUAL = "buddy_casual"
+        private const val KEY_PERSONA = "buddy_persona"
 
         /** 아직 만들지 않았으면 null (홈에 회색 빈 카드) */
         fun load(prefs: SharedPreferences): BuddyConfig? {
             val id = prefs.getString(KEY_CHARACTER, null) ?: return null
             val style = BuddyStyle.of(prefs.getString(KEY_STYLE, null)) ?: return null
-            return BuddyConfig(id, style, prefs.getBoolean(KEY_CASUAL, true))
+            return BuddyConfig(id, style, prefs.getBoolean(KEY_CASUAL, true), prefs.getString(KEY_PERSONA, null))
         }
     }
 }
