@@ -5,6 +5,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.smalltoktok.pleos.Services
 import com.smalltoktok.pleos.data.ApiException
+import com.smalltoktok.pleos.data.BuddyConfig
+import com.smalltoktok.pleos.data.Character
 import com.smalltoktok.pleos.data.Feedback
 import com.smalltoktok.pleos.data.Message
 import com.smalltoktok.pleos.data.Metrics
@@ -58,6 +60,12 @@ data class TalkState(
     val trip: Trip? = null,
     /** 목적지에 맞춰 고른 상대. "다른 사람"을 누르면 비우고 무작위 상대로 돌아간다 */
     val tripPartnerId: String? = null,
+    /** 말동무 설정 (2026-11-02). 아직 만들지 않았으면 null */
+    val buddy: BuddyConfig? = null,
+    /** 말동무 사진 고르기용 인물 목록 (설정 화면을 열 때 받는다) */
+    val characters: List<Character> = emptyList(),
+    /** 지금 대화가 말동무와의 수다인지 (연습이 아니라 코칭 없이 끝난다) */
+    val talkBuddy: Boolean = false,
 ) {
     val shared get() = scenarios.filter { !it.mine }
     val mine get() = scenarios.filter { it.mine }
@@ -94,6 +102,7 @@ class TalkViewModel(app: Application) : AndroidViewModel(app) {
                 casual = prefs.getBoolean("casual", false),
                 speechHintSeen = prefs.getBoolean("speech_hint_seen", false),
                 difficulty = Difficulty.of(prefs.getString("difficulty", null)),
+                buddy = BuddyConfig.load(prefs),
             )
         }
         loadScenarios()
@@ -177,6 +186,65 @@ class TalkViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun loadCharacters() {
+        if (_state.value.characters.isNotEmpty()) return
+        viewModelScope.launch {
+            runCatching { api.characters() }.onSuccess { list -> _state.update { it.copy(characters = list) } }
+        }
+    }
+
+    fun saveBuddy(config: BuddyConfig) {
+        config.save(prefs)
+        _state.update { it.copy(buddy = config) }
+    }
+
+    /**
+     * 말동무와 수다 (2026-11-02): 연습과 같은 듣기·말하기 고리를 쓰되, 말동무가 오늘의 소재로 먼저 말을 걸고
+     * 최대 20번까지 이어 간다. 끝나면 코칭 없이 홈으로 돌아간다(평가받는 느낌을 없앤다).
+     */
+    fun startBuddy() {
+        val config = _state.value.buddy ?: return
+        loop?.cancel()
+        metrics.clear()
+        conversationId = null
+        val scenario = Scenario(
+            id = BUDDY_ID, title = "말동무", who = config.style.label, whoShort = "말동무", place = "",
+            characterId = config.characterId, firstSay = null, kind = BUDDY_ID,
+        )
+        _state.update {
+            it.copy(
+                scenario = scenario, phase = Phase.Starting, messages = emptyList(), partnerTurns = 0,
+                feedback = null, error = null, talkCasual = config.casual, talkBuddy = true,
+            )
+        }
+        loop = viewModelScope.launch {
+            try {
+                val started = api.buddyStart(config.characterId, config.style.key, config.casual)
+                conversationId = started.conversationId
+                _state.update { it.copy(maxPartnerTurns = started.maxPartnerTurns) }
+                var say = started.firstSay
+                var audio = started.firstAudioUrl
+                var end = false
+                while (true) {
+                    partnerSays(say, audio)
+                    if (end || _state.value.partnerTurns >= _state.value.maxPartnerTurns) break
+                    _state.update { it.copy(phase = Phase.Listening) }
+                    val heard = voice.listen()
+                    addMessage(Message("me", heard.text))
+                    _state.update { it.copy(phase = Phase.Thinking) }
+                    val next = api.buddyTurn(started.conversationId, _state.value.messages)
+                    say = next.say
+                    audio = next.audioUrl
+                    end = next.end
+                }
+                backHome()
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                _state.update { it.copy(phase = Phase.Error, error = messageOf(e)) }
+            }
+        }
+    }
+
     fun start(scenario: Scenario) {
         loop?.cancel()
         metrics.clear()
@@ -186,7 +254,7 @@ class TalkViewModel(app: Application) : AndroidViewModel(app) {
         _state.update {
             it.copy(
                 scenario = scenario, phase = Phase.Starting, messages = emptyList(), partnerTurns = 0,
-                feedback = null, error = null, talkCasual = casual, talkDifficulty = it.difficulty,
+                feedback = null, error = null, talkCasual = casual, talkDifficulty = it.difficulty, talkBuddy = false,
             )
         }
         loop = viewModelScope.launch {
@@ -223,6 +291,8 @@ class TalkViewModel(app: Application) : AndroidViewModel(app) {
         loop?.cancel()
         voice.stopSpeaking()
         voice.stopListening()
+        // 말동무와의 수다는 코칭 없이 바로 홈으로
+        if (_state.value.talkBuddy) return backHome()
         viewModelScope.launch {
             // 서버는 상대-나가 번갈아 끝난 대화만 받는다. 상대 말로 끝났으면 마지막 상대 말을 뺀다
             val msgs = _state.value.messages.let { if (it.size % 2 == 1) it.dropLast(1) else it }
@@ -301,6 +371,11 @@ class TalkViewModel(app: Application) : AndroidViewModel(app) {
     private fun addMessage(m: Message) = _state.update { it.copy(messages = it.messages + m) }
 
     private fun messageOf(e: Throwable) = friendlyError(e)
+
+    private companion object {
+        /** 말동무 대화의 가짜 상황 id (상황 목록·랠리 기록에는 들어가지 않는다) */
+        const val BUDDY_ID = "buddy"
+    }
 
     /** 아쉬운 대화로 만든 연습 상황처럼 목록에 없던 시나리오가 생기면 목록을 새로 받는다 */
     fun startNew(scenario: Scenario) {

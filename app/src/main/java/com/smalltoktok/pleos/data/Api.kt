@@ -67,6 +67,9 @@ data class Metrics(
 data class Started(val conversationId: String, val maxPartnerTurns: Int, val firstSay: String, val firstAudioUrl: String?)
 data class PartnerTurn(val say: String, val end: Boolean, val audioUrl: String?)
 
+/** 연습 상대 인물 풀 (말동무 사진 고르기). gender: f / m */
+data class Character(val id: String, val gender: String, val ageBand: String)
+
 data class ReflectionLine(val line: String, val why: String)
 /** 아쉬운 대화 결과. scenario가 null이면 연습으로 만들지 않은 이야기(무거운 이야기 등) */
 data class ReflectionResult(
@@ -406,6 +409,34 @@ class Api(context: Context) {
 
     private suspend fun conversation(body: JSONObject) =
         JSONObject(call("POST", "/functions/v1/conversation", body))
+
+    /** 인물 40명 (말동무 사진 고르기). 네트워크가 끊기면 마지막으로 받은 목록 */
+    suspend fun characters(): List<Character> {
+        val arr = JSONArray(cachedGet("/rest/v1/character?select=id,gender,age_band&active=is.true&order=id.asc", "characters"))
+        return (0 until arr.length()).map { arr.getJSONObject(it) }
+            .map { Character(it.getString("id"), it.getString("gender"), it.getString("age_band")) }
+    }
+
+    /** 말동무 첫 마디 (Edge Function buddy). conversationId 자리에 말동무 대화 id를 담는다 */
+    suspend fun buddyStart(characterId: String, style: String, casual: Boolean): Started {
+        val o = buddy(
+            JSONObject().put("action", "start").put("characterId", characterId).put("style", style)
+                .put("speechLevel", if (casual) "casual" else "formal"),
+        )
+        return Started(
+            conversationId = o.getString("chatId"),
+            maxPartnerTurns = o.getInt("maxPartnerTurns"),
+            firstSay = o.getJSONObject("first").getString("say"),
+            firstAudioUrl = audioUrl(o.getJSONObject("first").optStringOrNull("audioPath")),
+        )
+    }
+
+    suspend fun buddyTurn(chatId: String, messages: List<Message>): PartnerTurn {
+        val o = buddy(JSONObject().put("action", "turn").put("chatId", chatId).put("messages", JSONArray(messages.map { it.toJson() })))
+        return PartnerTurn(say = o.getString("say"), end = o.optBoolean("end"), audioUrl = audioUrl(o.optStringOrNull("audioPath")))
+    }
+
+    private suspend fun buddy(body: JSONObject) = JSONObject(call("POST", "/functions/v1/buddy", body))
 
     /**
      * 주행 중 네트워크가 끊겨도 보이도록 마지막으로 받은 목록을 기기에 둔다 (Pleos 하드웨어 접근 정책: 캐싱·오프라인).

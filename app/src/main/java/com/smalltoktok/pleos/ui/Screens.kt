@@ -116,6 +116,8 @@ fun App(vm: TalkViewModel) {
                         ) { extra = null }
                         // 주행으로 바뀌면 설정으로 돌아간다 (글이 많은 화면)
                         Extra.Notices -> if (parked) NoticesScreen() else LaunchedEffect(Unit) { extra = Extra.Settings }
+                        // 말동무 만들기는 사진·스타일을 고르는 화면이라 정차 중에만 (주행으로 바뀌면 홈으로)
+                        Extra.Buddy -> if (parked) BuddySetupScreen(state, vm) { extra = null } else LaunchedEffect(Unit) { extra = null }
                         null -> when (tab) {
                             Tab.Evening -> HomeScreen(
                                 state, parked, vm,
@@ -126,6 +128,7 @@ fun App(vm: TalkViewModel) {
                                 },
                                 // 퇴근길: 아쉬운 대화 탭으로 (라임 공을 누르면 말로 털어놓는다)
                                 onReflect = { tab = Tab.Reflect },
+                                onBuddySetup = { extra = Extra.Buddy },
                             )
                             Tab.Reflect -> ReflectScreen(reflectVm, parked) { vm.startNew(it) }
                             Tab.Morning -> MorningScreen(morningVm, parked)
@@ -169,7 +172,14 @@ private fun SplashScreen() {
  * 정차 중: 상황 카드 목록.
  */
 @Composable
-private fun HomeScreen(state: TalkState, parked: Boolean, vm: TalkViewModel, onMorning: () -> Unit, onReflect: () -> Unit) {
+private fun HomeScreen(
+    state: TalkState,
+    parked: Boolean,
+    vm: TalkViewModel,
+    onMorning: () -> Unit,
+    onReflect: () -> Unit,
+    onBuddySetup: () -> Unit,
+) {
     Column(Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
         state.trip?.let { TripBar(it, parked, onMorning, onReflect) }
         when {
@@ -179,7 +189,12 @@ private fun HomeScreen(state: TalkState, parked: Boolean, vm: TalkViewModel, onM
                 BigButton("다시 불러오기") { vm.loadScenarios() }
             }
             // 주행 중: 오늘의 상대 사진과 큰 시작 버튼만 (목록을 읽고 고르는 일은 정차 중에)
-            !parked -> state.partner?.let { DrivingHome(it, state, vm, Modifier.weight(1f)) }
+            // 말동무가 있으면 연습 상대(왼쪽)와 말동무(오른쪽)를 같은 크기 카드 둘로
+            !parked -> Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                val two = state.buddy != null
+                state.partner?.let { DrivingHome(it, state, vm, Modifier.weight(1f), fill = two) }
+                state.buddy?.let { BuddyDrivingCard(it, vm, Modifier.weight(1f)) }
+            }
             else -> BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                 // 2026-10-23 시안(docs/prototypes/today-partner.html): 넓은 창은 왼쪽 큰 세로 카드(바로 시작하기·다른 사람)
                 // + 오른쪽 사진 카드 목록, 좁은 창은 A안(세로 카드 위, 목록 아래). 사진을 세로 그대로 써서 얼굴이 잘리지 않게.
@@ -189,10 +204,10 @@ private fun HomeScreen(state: TalkState, parked: Boolean, vm: TalkViewModel, onM
                         state.partner?.let { t ->
                             TodayPartner(t, parked = true, state, vm, Modifier.fillMaxHeight().padding(bottom = 8.dp).aspectRatio(3f / 4f))
                         }
-                        ScenarioGrid(state, vm, Modifier.weight(1f).fillMaxHeight(), today = null)
+                        ScenarioGrid(state, vm, Modifier.weight(1f).fillMaxHeight(), today = null, onBuddySetup)
                     }
                 } else {
-                    ScenarioGrid(state, vm, Modifier.fillMaxSize(), today = state.partner)
+                    ScenarioGrid(state, vm, Modifier.fillMaxSize(), today = state.partner, onBuddySetup)
                 }
             }
         }
@@ -247,7 +262,13 @@ private val WIDE_HOME = 900.dp
 
 /** 상황 목록. 좁은 창에서는 맨 위에 오늘의 상대 세로 카드(A안)를 함께 넣는다 */
 @Composable
-private fun ScenarioGrid(state: TalkState, vm: TalkViewModel, modifier: Modifier, today: Scenario?) = LazyVerticalGrid(
+private fun ScenarioGrid(
+    state: TalkState,
+    vm: TalkViewModel,
+    modifier: Modifier,
+    today: Scenario?,
+    onBuddySetup: () -> Unit,
+) = LazyVerticalGrid(
     columns = GridCells.Adaptive(minSize = 220.dp),
     modifier = modifier,
     horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -258,6 +279,8 @@ private fun ScenarioGrid(state: TalkState, vm: TalkViewModel, modifier: Modifier
             TodayPartner(t, parked = true, state, vm, Modifier.fillMaxWidth().aspectRatio(3f / 3.2f))
         }
     }
+    // 말동무 고정 카드 (2026-11-02): 연습 상황 목록 위, 늘 같은 자리
+    item(key = "buddy", span = { GridItemSpan(maxLineSpan) }) { BuddyCard(state, vm, onBuddySetup) }
     item(span = { GridItemSpan(maxLineSpan) }) { Section("누구와, 어떤 자리에서?") }
     items(state.shared, key = { it.id }) { ScenarioCard(it, state.rallies[it.id], it.casual(state.casual), vm) }
     if (state.mine.isNotEmpty()) {
@@ -342,11 +365,12 @@ private fun partnerLabel(s: Scenario, state: TalkState) = if (s.id == state.trip
  * 카드는 높이에 맞추고 가운데 둔다. 폭이 높이의 0.85배라 사진(3:4)은 위아래만 조금 잘리고 얼굴은 그대로다.
  */
 @Composable
-private fun DrivingHome(s: Scenario, state: TalkState, vm: TalkViewModel, modifier: Modifier) =
+private fun DrivingHome(s: Scenario, state: TalkState, vm: TalkViewModel, modifier: Modifier, fill: Boolean = false) =
     Box(modifier.fillMaxWidth().padding(bottom = 8.dp), contentAlignment = Alignment.TopCenter) {
         val casual = s.casual(state.casual)
+        // fill: 말동무 카드와 나란히 둘 때는 고정 비율 대신 반쪽을 채운다(비율대로면 두 장이 겹친다)
         Box(
-            Modifier.fillMaxHeight().aspectRatio(0.85f, matchHeightConstraintsFirst = true)
+            (if (fill) Modifier.fillMaxSize() else Modifier.fillMaxHeight().aspectRatio(0.85f, matchHeightConstraintsFirst = true))
                 .clip(RoundedCornerShape(28.dp)).clickable { vm.start(s) },
         ) {
             Portrait(s, vm, Modifier.fillMaxSize())
@@ -516,13 +540,15 @@ private fun PartnerStage(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(s.whoShort, style = MaterialTheme.typography.titleLarge, color = Palette.accent)
-                // 반말이면 표시, 난이도는 늘 표시. 누를 수 없고 대화 중에는 바꾸지 않는다
+                // 반말이면 표시, 난이도는 연습일 때만 표시. 누를 수 없고 대화 중에는 바꾸지 않는다
                 if (state.talkCasual) {
                     Spacer(Modifier.width(12.dp))
                     SpeechTag("반말", onDark = true)
                 }
-                Spacer(Modifier.width(8.dp))
-                SpeechTag("난이도 ${state.talkDifficulty.label}", onDark = true)
+                if (!state.talkBuddy) {
+                    Spacer(Modifier.width(8.dp))
+                    SpeechTag("난이도 ${state.talkDifficulty.label}", onDark = true)
+                }
             }
             val lastPartner = state.messages.lastOrNull { it.speaker == "partner" }?.text
             when (state.phase) {
@@ -540,7 +566,7 @@ private fun PartnerStage(
             }
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "랠리 ${state.partnerTurns} / ${state.maxPartnerTurns}",
+                    if (state.talkBuddy) "${state.partnerTurns} / ${state.maxPartnerTurns}" else "랠리 ${state.partnerTurns} / ${state.maxPartnerTurns}",
                     style = MaterialTheme.typography.labelLarge,
                     color = Palette.surface,
                 )
@@ -550,7 +576,7 @@ private fun PartnerStage(
                         onClick = { vm.endNow() },
                         modifier = Modifier.height(72.dp),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Palette.surface),
-                    ) { Text("대화 끝내기", style = MaterialTheme.typography.labelLarge) }
+                    ) { Text(if (state.talkBuddy) "그만하기" else "대화 끝내기", style = MaterialTheme.typography.labelLarge) }
                 }
             }
         }
