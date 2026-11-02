@@ -117,11 +117,16 @@ fun App(vm: TalkViewModel) {
                         // 주행으로 바뀌면 설정으로 돌아간다 (글이 많은 화면)
                         Extra.Notices -> if (parked) NoticesScreen() else LaunchedEffect(Unit) { extra = Extra.Settings }
                         null -> when (tab) {
-                            Tab.Evening -> HomeScreen(state, parked, vm) {
+                            Tab.Evening -> HomeScreen(
+                                state, parked, vm,
                                 // 출근길: 아침 카드 탭으로 가서 추천 브리핑을 바로 들려준다
-                                tab = Tab.Morning
-                                morningVm.togglePlay()
-                            }
+                                onMorning = {
+                                    tab = Tab.Morning
+                                    morningVm.togglePlay()
+                                },
+                                // 퇴근길: 아쉬운 대화 탭으로 (라임 공을 누르면 말로 털어놓는다)
+                                onReflect = { tab = Tab.Reflect },
+                            )
                             Tab.Reflect -> ReflectScreen(reflectVm, parked) { vm.startNew(it) }
                             Tab.Morning -> MorningScreen(morningVm, parked)
                             Tab.Habits -> HabitScreen(habitVm, parked, profile.given) { distance -> vm.startForDistance(distance) }
@@ -164,9 +169,9 @@ private fun SplashScreen() {
  * 정차 중: 상황 카드 목록.
  */
 @Composable
-private fun HomeScreen(state: TalkState, parked: Boolean, vm: TalkViewModel, onMorning: () -> Unit) {
+private fun HomeScreen(state: TalkState, parked: Boolean, vm: TalkViewModel, onMorning: () -> Unit, onReflect: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-        state.trip?.let { TripBar(it, parked, onMorning) }
+        state.trip?.let { TripBar(it, parked, onMorning, onReflect) }
         when {
             state.loadingScenarios -> Loading("상대를 불러오고 있어요")
             state.scenarios.isEmpty() -> {
@@ -196,11 +201,11 @@ private fun HomeScreen(state: TalkState, parked: Boolean, vm: TalkViewModel, onM
 
 /**
  * 내비 목적지 한 줄 (2026-11-02, A안 "차의 맥락 쓰기"): "회사 가는 길 · 도착까지 23분".
- * 출근길이면 오른쪽에 "오늘의 소재 듣기"(아침 카드 브리핑), 퇴근길이면 하루를 정리하는 한마디를 붙인다.
+ * 출근길이면 오른쪽에 "오늘의 소재 듣기"(아침 카드 브리핑), 퇴근길이면 "털어놓기"(아쉬운 대화 탭)를 붙인다.
  * 그 밖의 목적지는 아래 상대 카드가 그 자리에 맞는 상황으로 바뀐다(TripMatch).
  */
 @Composable
-private fun TripBar(trip: Trip, parked: Boolean, onMorning: () -> Unit) = Row(
+private fun TripBar(trip: Trip, parked: Boolean, onMorning: () -> Unit, onReflect: () -> Unit) = Row(
     Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(Palette.surface).padding(horizontal = 24.dp, vertical = 12.dp),
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -218,18 +223,24 @@ private fun TripBar(trip: Trip, parked: Boolean, onMorning: () -> Unit) = Row(
             maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
         if (trip.kind == TripKind.ToHome && parked) {
-            Text("오늘 하루 대화, 한 판 되짚어 볼까요?", style = MaterialTheme.typography.bodyLarge, color = Palette.muted)
+            Text("오늘 아쉬웠던 대화, 털어놓고 다시 해 볼까요?", style = MaterialTheme.typography.bodyLarge, color = Palette.muted)
         }
     }
-    if (trip.kind == TripKind.ToOffice) {
-        Button(
-            onClick = onMorning,
-            modifier = Modifier.height(if (parked) 56.dp else 76.dp),
-            shape = RoundedCornerShape(40.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Palette.ink, contentColor = Palette.surface),
-        ) { Text("오늘의 소재 듣기", style = MaterialTheme.typography.labelLarge) }
+    when (trip.kind) {
+        TripKind.ToOffice -> TripButton("오늘의 소재 듣기", parked, onMorning)
+        // 퇴근길: 오늘 있었던 대화를 털어놓고 그 상대로 다시 연습한다 (2026-11-02)
+        TripKind.ToHome -> TripButton("털어놓기", parked, onReflect)
+        TripKind.Other -> Unit
     }
 }
+
+@Composable
+private fun TripButton(text: String, parked: Boolean, onClick: () -> Unit) = Button(
+    onClick = onClick,
+    modifier = Modifier.height(if (parked) 56.dp else 76.dp),
+    shape = RoundedCornerShape(40.dp),
+    colors = ButtonDefaults.buttonColors(containerColor = Palette.ink, contentColor = Palette.surface),
+) { Text(text, style = MaterialTheme.typography.labelLarge) }
 
 /** 넓은 창(전체화면 등)과 좁은 창(상황판 옆 1칸)을 가르는 폭 */
 private val WIDE_HOME = 900.dp
