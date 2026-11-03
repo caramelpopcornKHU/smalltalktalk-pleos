@@ -47,6 +47,7 @@ fun NameScreen(
     var given by rememberSaveable(state.given) { mutableStateOf(state.given.orEmpty()) }
     var gender by rememberSaveable(state.gender) { mutableStateOf(state.gender) }
     var birthYear by rememberSaveable(state.birthYear) { mutableStateOf(state.birthYear?.toString().orEmpty()) }
+    val yearOk = isValidBirthYear(birthYear)
 
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
@@ -56,7 +57,8 @@ fun NameScreen(
             if (!asSettings) RallyMark(size = 88.dp)
             Text(if (asSettings) "내 이름" else "어떻게 불러드릴까요?", style = MaterialTheme.typography.headlineMedium)
             Text(
-                "대화 상대가 \"현대야\", \"현대 형\"처럼 이름으로 불러 줘요. 나만 볼 수 있어요.",
+                // 예시 이름은 차 브랜드로 읽히지 않는 흔한 이름으로
+                "대화 상대가 \"민수야\", \"민수 형\"처럼 이름으로 불러 줘요. 나만 볼 수 있어요.",
                 style = MaterialTheme.typography.bodyLarge, color = Palette.muted,
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -90,15 +92,24 @@ fun NameScreen(
                 Text("운전 중에는 말로 입력해 주세요. 글자로 입력하려면 차를 세워 주세요.", style = MaterialTheme.typography.bodyLarge, color = Palette.muted)
             }
             // 오빠·누나·형·언니를 고르는 데만 쓴다. 비워 두면 이름만 부른다
-            Text("성별과 태어난 해 (선택)", style = MaterialTheme.typography.titleLarge)
-            Segmented(listOf("m" to "남자", "f" to "여자"), gender) { gender = if (gender == it) null else it }
+            // 태어난 해는 키보드로만 받아서 주행 중에는 성별만 고른다
+            Text(if (parked) "성별과 태어난 해 (선택)" else "성별 (선택)", style = MaterialTheme.typography.titleLarge)
+            Segmented(listOf("m" to "남자", "f" to "여자"), gender, large = !parked) { gender = if (gender == it) null else it }
+            val yearHint = "${BIRTH_YEARS.first}~${BIRTH_YEARS.last} 사이 네 자리로 적어 주세요"
             if (parked) {
                 OutlinedTextField(
                     value = birthYear, onValueChange = { v -> birthYear = v.filter { it.isDigit() }.take(4) },
                     label = { Text("태어난 해 (예: 1996)") }, singleLine = true,
+                    isError = !yearOk,
+                    supportingText = if (yearOk) null else ({ Text(yearHint) }),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     textStyle = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth(),
+                )
+            } else {
+                Text(
+                    if (yearOk) "태어난 해는 차를 세우고 적을 수 있어요." else "태어난 해를 다시 적어야 저장돼요. 차를 세우고 고쳐 주세요.",
+                    style = MaterialTheme.typography.bodyLarge, color = Palette.muted,
                 )
             }
             state.error?.let { Text(it, style = MaterialTheme.typography.bodyLarge) }
@@ -106,7 +117,7 @@ fun NameScreen(
                 if (state.saving) "저장하는 중…" else if (asSettings) "저장하기" else "시작하기",
                 accent = true,
             ) {
-                if (!state.saving && (family.isNotBlank() || given.isNotBlank())) vm.save(family, given, gender, birthYear, onDone)
+                if (!state.saving && yearOk && (family.isNotBlank() || given.isNotBlank())) vm.save(family, given, gender, birthYear, onDone)
             }
             if (!asSettings) {
                 OutlinedButton(onClick = { vm.skip() }, modifier = Modifier.fillMaxWidth().height(72.dp)) {

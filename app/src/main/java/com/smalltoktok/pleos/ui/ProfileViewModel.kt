@@ -10,6 +10,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/** 태어난 해로 받는 범위 (서버 profile.birth_year 검사와 같다) */
+val BIRTH_YEARS = 1940..2015
+
+/** 비었거나 범위 안의 네 자리면 저장할 수 있다 */
+fun isValidBirthYear(text: String): Boolean = text.isEmpty() || text.toIntOrNull()?.let { it in BIRTH_YEARS } == true
+
 data class ProfileState(
     val loaded: Boolean = false,
     val family: String? = null,
@@ -56,8 +62,8 @@ class ProfileViewModel(app: Application) : AndroidViewModel(app) {
     fun save(family: String, given: String, gender: String?, birthYear: String, onDone: () -> Unit = {}) {
         val f = family.trim().take(10).ifEmpty { null }
         val g = given.trim().take(20).ifEmpty { null }
-        // 서버 검사와 같은 범위. 벗어나면 비워 둔다(호칭 없이 이름만 부른다)
-        val y = birthYear.trim().toIntOrNull()?.takeIf { it in 1940..2015 }
+        // 화면이 범위를 벗어난 값은 저장 전에 막는다(isValidBirthYear). 여기서는 한 번 더 거른다
+        val y = birthYear.trim().toIntOrNull()?.takeIf { it in BIRTH_YEARS }
         _state.update { it.copy(saving = true, error = null) }
         viewModelScope.launch {
             runCatching { services.api.saveProfileName(ProfileName(f, g, gender, y)) }
