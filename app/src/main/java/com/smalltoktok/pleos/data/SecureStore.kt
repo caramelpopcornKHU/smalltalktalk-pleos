@@ -24,8 +24,13 @@ class SecureStore(private val prefs: SharedPreferences) {
             putString(name, stored)
             return stored
         }
-        return runCatching { decrypt(stored.removePrefix(PREFIX)) }.getOrNull()
+        return runCatching { decrypt(stored.removePrefix(PREFIX)) }
+            .onFailure { android.util.Log.w(TAG, "$name 복호화 실패 (Keystore 키가 바뀌었을 수 있어요)", it) }
+            .getOrNull()
     }
+
+    /** 값이 저장돼 있는지 (읽을 수 있는지와 별개). getString이 null인데 true면 복호화에 실패한 것 */
+    fun has(name: String): Boolean = prefs.contains(name)
 
     fun putString(name: String, value: String) {
         prefs.edit().putString(name, PREFIX + encrypt(value)).apply()
@@ -60,6 +65,7 @@ class SecureStore(private val prefs: SharedPreferences) {
     }
 
     private companion object {
+        const val TAG = "SecureStore"
         const val KEYSTORE = "AndroidKeyStore"
         const val ALIAS = "smalltoktok_auth"
         const val TRANSFORMATION = "AES/GCM/NoPadding"

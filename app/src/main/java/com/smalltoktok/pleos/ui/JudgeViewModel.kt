@@ -65,15 +65,11 @@ class JudgeViewModel(app: Application) : AndroidViewModel(app) {
         _state.update { it.withText(slot, "").copy(listening = slot, error = null) }
         job = viewModelScope.launch {
             try {
-                while (true) {
-                    val heard = voice.listen(startTimeoutMs = SILENCE_STOP_MS)
-                    if (heard.text.isNotEmpty()) {
-                        _state.update { st ->
-                            val before = st.textOf(slot)
-                            st.withText(slot, if (before.isEmpty()) heard.text else "$before ${heard.text}")
-                        }
+                voice.dictate(shouldStop = { stopRequested || _state.value.textOf(slot).length >= MAX_CHARS }) { piece ->
+                    _state.update { st ->
+                        val before = st.textOf(slot)
+                        st.withText(slot, if (before.isEmpty()) piece else "$before $piece")
                     }
-                    if (heard.text.isEmpty() || stopRequested || _state.value.textOf(slot).length >= MAX_CHARS) break
                 }
             } finally {
                 _state.update { if (it.listening == slot) it.copy(listening = null) else it }
@@ -150,7 +146,5 @@ class JudgeViewModel(app: Application) : AndroidViewModel(app) {
     private companion object {
         /** 서버 한도(주제 120자, 주장 600자)보다 넉넉히 작게 */
         const val MAX_CHARS = 500
-        /** 이만큼 조용하면 받아쓰기를 끝낸다 (털어놓기와 같은 값) */
-        const val SILENCE_STOP_MS = 8_000L
     }
 }

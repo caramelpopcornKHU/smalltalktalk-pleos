@@ -98,11 +98,8 @@ class ReflectViewModel(app: Application, private val saved: SavedStateHandle) : 
         _state.update { it.copy(phase = ReflectPhase.Listening, error = null) }
         job = viewModelScope.launch {
             try {
-                while (true) {
-                    val heard = voice.listen(startTimeoutMs = SILENCE_STOP_MS)
-                    if (heard.text.isNotEmpty()) _state.update { it.copy(pieces = it.pieces + heard.text) }
-                    if (heard.text.isEmpty() || stopRequested) break
-                    if (_state.value.story.length >= STORY_MAX) break
+                voice.dictate(shouldStop = { stopRequested || _state.value.story.length >= STORY_MAX }) { piece ->
+                    _state.update { it.copy(pieces = it.pieces + piece) }
                 }
             } finally {
                 _state.update { if (it.phase == ReflectPhase.Listening) it.copy(phase = ReflectPhase.Telling) else it }
@@ -207,7 +204,6 @@ class ReflectViewModel(app: Application, private val saved: SavedStateHandle) : 
     }
 
     private companion object {
-        const val SILENCE_STOP_MS = 8_000L
         const val WAIT_STEP_MS = 3_500L
     }
 }

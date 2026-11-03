@@ -244,7 +244,7 @@ class TalkViewModel(app: Application) : AndroidViewModel(app) {
                     partnerSays(say, audio)
                     if (end || _state.value.partnerTurns >= _state.value.maxPartnerTurns) break
                     _state.update { it.copy(phase = Phase.Listening) }
-                    val heard = voice.listen()
+                    val heard = voice.listen(startTimeoutMs = ANSWER_START_MS)
                     addMessage(Message("me", heard.text))
                     _state.update { it.copy(phase = Phase.Thinking) }
                     val next = api.buddyTurn(started.conversationId, _state.value.messages)
@@ -284,7 +284,7 @@ class TalkViewModel(app: Application) : AndroidViewModel(app) {
                     partnerSays(say, audio)
                     if (end || _state.value.partnerTurns >= _state.value.maxPartnerTurns) break
                     _state.update { it.copy(phase = Phase.Listening) }
-                    val heard = voice.listen()
+                    val heard = voice.listen(startTimeoutMs = ANSWER_START_MS)
                     addMessage(Message("me", heard.text))
                     if (heard.text.isNotEmpty()) metrics += Metrics(heard.responseDelayMs, heard.speakingMs)
                     _state.update { it.copy(phase = Phase.Thinking) }
@@ -390,6 +390,9 @@ class TalkViewModel(app: Application) : AndroidViewModel(app) {
     private companion object {
         /** 말동무 대화의 가짜 상황 id (상황 목록·랠리 기록에는 들어가지 않는다) */
         const val BUDDY_ID = "buddy"
+
+        /** 상대 말이 끝나고 이 안에 말을 시작하지 못하면 상대가 이어 간다 (기획: 8초, 2026-11-03 코드 리뷰로 20초에서 맞춤) */
+        const val ANSWER_START_MS = 8_000L
     }
 
     /** 아쉬운 대화로 만든 연습 상황처럼 목록에 없던 시나리오가 생기면 목록을 새로 받는다 */

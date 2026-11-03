@@ -137,10 +137,15 @@ class Voice(context: Context) {
         .setOnAudioFocusChangeListener(focusListener)
         .build()
 
+    /**
+     * 인터넷에 붙은 네트워크가 있는지. "검증됨(VALIDATED)"까지는 묻지 않는다: 차량 모뎀·핫스팟은 연결돼 있어도
+     * 검증 표시가 없을 때가 있어 서버 목소리를 못 듣고 늘 Pleos TTS로 읽었다(2026-11-03 코드 리뷰).
+     * 실제로 못 받으면 playUrl이 실패하고 Pleos TTS로 넘어간다.
+     */
     private fun online(): Boolean {
         val cm = app.getSystemService(ConnectivityManager::class.java)
         val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return false
-        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
     }
 
     /** 서버 목소리가 있으면 그걸로, 아니면 Pleos TTS로 다 읽을 때까지 기다린다 */
@@ -255,6 +260,19 @@ class Voice(context: Context) {
         return delay to speaking
     }
 
+    /**
+     * 조용해질 때까지 여러 문장을 이어 받아쓴다 (털어놓기·AI 판사 공용, 2026-11-03 코드 리뷰로 두 벌을 합침).
+     * 한 문장을 받을 때마다 onPiece로 넘기고, silenceMs 동안 말이 없거나 shouldStop()이 true면 끝낸다.
+     * 사용자가 멈추면 부르는 쪽이 shouldStop을 true로 만들고 stopListening()을 부른다.
+     */
+    suspend fun dictate(shouldStop: () -> Boolean, silenceMs: Long = DICTATE_SILENCE_MS, onPiece: (String) -> Unit) {
+        while (true) {
+            val heard = listen(startTimeoutMs = silenceMs)
+            if (heard.text.isNotEmpty()) onPiece(heard.text)
+            if (heard.text.isEmpty() || shouldStop()) break
+        }
+    }
+
     fun stopListening() {
         stt.stop()
         heard?.complete(_partial.value)
@@ -277,5 +295,7 @@ class Voice(context: Context) {
         /** 말을 시작하고 첫 글자가 화면에 오기까지 걸리는 대략의 인식 지연 */
         const val TEXT_LAG_MS = 500L
         const val DUCK_VOLUME = 0.3f
+        /** 받아쓰기(dictate)에서 이만큼 조용하면 끝낸다 */
+        const val DICTATE_SILENCE_MS = 8_000L
     }
 }

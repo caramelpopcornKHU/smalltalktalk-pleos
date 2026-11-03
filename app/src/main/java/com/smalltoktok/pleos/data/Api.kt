@@ -509,6 +509,11 @@ class Api(context: Context) {
         // uid는 2026-10-23부터 저장한다. 예전 설치는 한 번 새로 받아 uid를 채운다
         if (token != null && prefs.contains("uid") && System.currentTimeMillis() < expiresAt - 60_000) return token
         val refresh = tokens.getString("refresh")
+        if (refresh == null && tokens.has("refresh")) {
+            // 저장된 토큰을 읽지 못하면(Keystore 키가 바뀜) 이어 쓸 방법이 없어 새 사용자가 된다.
+            // 이전 사용자 id를 남겨 두어 나중에 기록을 찾아 옮길 수 있게 한다 (2026-11-03 코드 리뷰)
+            prefs.getString("uid", null)?.let { prefs.edit().putString("previousUid", it).apply() }
+        }
         val session = if (refresh != null) {
             runCatching { auth("/auth/v1/token?grant_type=refresh_token", JSONObject().put("refresh_token", refresh)) }
                 .getOrElse { e ->
