@@ -61,6 +61,7 @@ val MORNING_CATEGORY_LABELS = mapOf(
     "kpop" to "K-pop",
     "issue" to "어제의 이슈",
     "sports" to "스포츠",
+    "ott" to "드라마·예능·OTT",
 )
 
 fun MorningCard.line(tone: Tone) = if (tone == Tone.Coworker) coworkerLine else strangerLine

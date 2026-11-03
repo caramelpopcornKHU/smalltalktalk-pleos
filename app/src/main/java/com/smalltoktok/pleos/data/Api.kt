@@ -555,7 +555,7 @@ class Api(context: Context) {
         val JSON = "application/json".toMediaType()
         const val SCENARIO_COLUMNS = "id,kind,distance,title,who,who_short,place,character_id,casual_say,speech_level,scenario_turn(position,say)"
         // 폰 앱 MORNING_CATEGORIES 순서 (packages/shared/src/morning.ts)
-        val MORNING_ORDER = listOf("weather", "fun-fact", "season", "food", "outing", "culture", "fuel", "movie-drama", "kpop", "issue", "sports")
+        val MORNING_ORDER = listOf("weather", "fun-fact", "season", "food", "outing", "culture", "fuel", "movie-drama", "kpop", "issue", "sports", "ott")
     }
 }
 
