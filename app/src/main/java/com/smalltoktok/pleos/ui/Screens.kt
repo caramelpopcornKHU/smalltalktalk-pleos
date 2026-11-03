@@ -94,6 +94,17 @@ fun App(vm: TalkViewModel) {
         habitVm.stopSpeaking()
         judgeVm.onBackground()
     }
+    // 탭을 옮기거나 연습 대화를 시작하면, 보이지 않게 된 탭의 마이크·소리를 멈춘다.
+    // 음성 엔진(Voice)은 탭들이 하나를 나눠 써서, 그대로 두면 두 탭의 듣기·읽기가 서로 끊는다 (2026-11-03 코드 리뷰)
+    val talking = state.phase != Phase.Idle
+    // 멈추는 함수들이 음성 엔진 전체를 멈추므로, 실제로 듣거나 읽던 탭만 멈춘다(방금 시작한 탭의 소리를 끊지 않게)
+    LaunchedEffect(tab, talking) {
+        val shown = tab.takeIf { !talking }
+        if (shown != Tab.Reflect && reflectVm.state.value.phase == ReflectPhase.Listening) reflectVm.onBackground()
+        if (shown != Tab.Morning && morningVm.state.value.playing != null) morningVm.stopBriefing()
+        if (shown != Tab.Habits && (habitVm.state.value.reading != null || habitVm.state.value.roastLoading)) habitVm.stopSpeaking()
+        if (shown != Tab.Judge && judgeVm.state.value.listening != null) judgeVm.onBackground()
+    }
     // 전체화면일 때 위 차량 정보 줄·아래 공조 바(시스템 바)와 겹치지 않게 안전 영역 안에만 그린다.
     // 상황판 옆 창(일부 화면)일 때는 겹치는 영역이 없어 여백이 0이 된다
     Box(Modifier.fillMaxSize().background(Palette.bg).windowInsetsPadding(WindowInsets.safeDrawing)) {

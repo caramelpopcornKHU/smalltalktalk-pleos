@@ -180,7 +180,8 @@ class Api(context: Context) {
     private val key = BuildConfig.SUPABASE_KEY
     private val http = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(40, TimeUnit.SECONDS)
+        // 긴 대화의 코칭(습관 태그 포함)은 40초를 넘길 수 있다 (2026-11-03 코드 리뷰)
+        .readTimeout(90, TimeUnit.SECONDS)
         .build()
     private val prefs = context.getSharedPreferences("auth", Context.MODE_PRIVATE)
     /** 토큰은 Keystore로 암호화해 둔다 (Pleos 보안 가이드). uid·만료 시각은 민감정보가 아니라 그대로 */
@@ -511,8 +512,9 @@ class Api(context: Context) {
         val session = if (refresh != null) {
             runCatching { auth("/auth/v1/token?grant_type=refresh_token", JSONObject().put("refresh_token", refresh)) }
                 .getOrElse { e ->
-                    // 네트워크가 끊긴 것이면 새 사용자로 바꾸지 않는다(이름·습관 기록이 사라지므로)
-                    if (e is java.io.IOException) throw e
+                    // refresh 토큰이 무효(400·401·403)일 때만 새 사용자로 바꾼다. 네트워크 오류나 서버 장애(5xx·429)면
+                    // 새 사용자를 만들지 않고 실패시킨다(이름·습관 기록이 사라지므로, 2026-11-03 코드 리뷰)
+                    if (e !is ApiException || e.status !in setOf(400, 401, 403)) throw e
                     auth("/auth/v1/signup", JSONObject())
                 }
         } else {

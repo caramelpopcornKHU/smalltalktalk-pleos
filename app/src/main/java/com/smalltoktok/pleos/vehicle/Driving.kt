@@ -37,7 +37,9 @@ class Driving(context: Context) {
         runCatching {
             car = Car.createCar(app, null, Car.CAR_WAIT_TIMEOUT_WAIT_FOREVER) { c, ready ->
                 if (!ready) {
+                    // 차량 서비스가 끊기면 다시 연결될 때까지 안전하게 주행 중으로 본다 (2026-11-03 코드 리뷰)
                     manager = null
+                    _parked.value = false
                     return@createCar
                 }
                 val m = c.getCarManager(Car.CAR_UX_RESTRICTION_SERVICE) as? CarUxRestrictionsManager ?: return@createCar
