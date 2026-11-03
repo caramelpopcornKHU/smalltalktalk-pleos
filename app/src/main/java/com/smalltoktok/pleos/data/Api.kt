@@ -65,6 +65,13 @@ data class Metrics(
 
 /** audioUrl: 서버(Google Chirp)가 합성한 음성 파일. 합성에 실패하면 null이고 Pleos TTS로 읽는다 */
 data class Started(val conversationId: String, val maxPartnerTurns: Int, val firstSay: String, val firstAudioUrl: String?)
+/** 내 이름과 호칭에 쓰는 성별(m/f)·출생연도. 대화 상대가 "현대야", "현대 형"처럼 부른다 (2026-11-03) */
+data class ProfileName(
+    val family: String? = null,
+    val given: String? = null,
+    val gender: String? = null,
+    val birthYear: Int? = null,
+)
 /** 말동무 첫 마디 + 서버가 지은(또는 그대로 돌려준) 말동무 프로필 */
 data class BuddyStarted(val started: Started, val persona: String?)
 data class PartnerTurn(val say: String, val end: Boolean, val audioUrl: String?)
@@ -337,20 +344,24 @@ class Api(context: Context) {
         return Verdict(o.getString("winner"), o.getString("title"), o.getString("reason"), audioUrl(o.optStringOrNull("audioPath")))
     }
 
-    /** 내 성·이름 (profile, RLS로 본인 행만). 아직 입력하지 않았으면 둘 다 null */
-    suspend fun profileName(): Pair<String?, String?> {
-        val arr = JSONArray(call("GET", "/rest/v1/profile?select=family_name,given_name"))
-        if (arr.length() == 0) return null to null
+    /** 내 성·이름·성별·출생연도 (profile, RLS로 본인 행만). 아직 입력하지 않았으면 모두 null */
+    suspend fun profileName(): ProfileName {
+        val arr = JSONArray(call("GET", "/rest/v1/profile?select=family_name,given_name,gender,birth_year"))
+        if (arr.length() == 0) return ProfileName()
         val o = arr.getJSONObject(0)
-        return o.optStringOrNull("family_name") to o.optStringOrNull("given_name")
+        return ProfileName(
+            o.optStringOrNull("family_name"), o.optStringOrNull("given_name"), o.optStringOrNull("gender"),
+            if (o.isNull("birth_year")) null else o.optInt("birth_year"),
+        )
     }
 
-    suspend fun saveProfileName(family: String?, given: String?) {
+    suspend fun saveProfileName(name: ProfileName) {
         accessToken()
         val uid = prefs.getString("uid", null) ?: throw ApiException(401, "no_user", "user id unknown")
         call(
             "PATCH", "/rest/v1/profile?id=eq." + uid,
-            JSONObject().put("family_name", family ?: JSONObject.NULL).put("given_name", given ?: JSONObject.NULL),
+            JSONObject().put("family_name", name.family ?: JSONObject.NULL).put("given_name", name.given ?: JSONObject.NULL)
+                .put("gender", name.gender ?: JSONObject.NULL).put("birth_year", name.birthYear ?: JSONObject.NULL),
         )
     }
 

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -24,6 +25,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.smalltoktok.pleos.ui.theme.Palette
@@ -43,6 +45,8 @@ fun NameScreen(
     val state by vm.state.collectAsStateWithLifecycle()
     var family by rememberSaveable(state.family) { mutableStateOf(state.family.orEmpty()) }
     var given by rememberSaveable(state.given) { mutableStateOf(state.given.orEmpty()) }
+    var gender by rememberSaveable(state.gender) { mutableStateOf(state.gender) }
+    var birthYear by rememberSaveable(state.birthYear) { mutableStateOf(state.birthYear?.toString().orEmpty()) }
 
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
@@ -52,7 +56,7 @@ fun NameScreen(
             if (!asSettings) RallyMark(size = 88.dp)
             Text(if (asSettings) "내 이름" else "어떻게 불러드릴까요?", style = MaterialTheme.typography.headlineMedium)
             Text(
-                "헤더와 대화 습관 리포트에서 이름으로 불러 드려요. 나만 볼 수 있어요.",
+                "대화 상대가 \"현대야\", \"현대 형\"처럼 이름으로 불러 줘요. 나만 볼 수 있어요.",
                 style = MaterialTheme.typography.bodyLarge, color = Palette.muted,
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -85,12 +89,24 @@ fun NameScreen(
             } else {
                 Text("운전 중에는 말로 입력해 주세요. 글자로 입력하려면 차를 세워 주세요.", style = MaterialTheme.typography.bodyLarge, color = Palette.muted)
             }
+            // 오빠·누나·형·언니를 고르는 데만 쓴다. 비워 두면 이름만 부른다
+            Text("성별과 태어난 해 (선택)", style = MaterialTheme.typography.titleLarge)
+            Segmented(listOf("m" to "남자", "f" to "여자"), gender) { gender = if (gender == it) null else it }
+            if (parked) {
+                OutlinedTextField(
+                    value = birthYear, onValueChange = { v -> birthYear = v.filter { it.isDigit() }.take(4) },
+                    label = { Text("태어난 해 (예: 1996)") }, singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    textStyle = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth(),
+                )
+            }
             state.error?.let { Text(it, style = MaterialTheme.typography.bodyLarge) }
             BigButton(
                 if (state.saving) "저장하는 중…" else if (asSettings) "저장하기" else "시작하기",
                 accent = true,
             ) {
-                if (!state.saving && (family.isNotBlank() || given.isNotBlank())) vm.save(family, given, onDone)
+                if (!state.saving && (family.isNotBlank() || given.isNotBlank())) vm.save(family, given, gender, birthYear, onDone)
             }
             if (!asSettings) {
                 OutlinedButton(onClick = { vm.skip() }, modifier = Modifier.fillMaxWidth().height(72.dp)) {
