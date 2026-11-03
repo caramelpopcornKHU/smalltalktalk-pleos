@@ -13,6 +13,10 @@ import kotlinx.coroutines.launch
 /** 태어난 해로 받는 범위 (서버 profile.birth_year 검사와 같다) */
 val BIRTH_YEARS = 1940..2015
 
+/** 청소년 보호법의 연 나이 기준 (서버 isAdultBirthYear와 같다). 태어난 해를 모르면 false */
+fun isAdult(birthYear: Int?): Boolean =
+    birthYear != null && java.time.Year.now().value - birthYear >= 19
+
 /** 비었거나 범위 안의 네 자리면 저장할 수 있다 */
 fun isValidBirthYear(text: String): Boolean = text.isEmpty() || text.toIntOrNull()?.let { it in BIRTH_YEARS } == true
 

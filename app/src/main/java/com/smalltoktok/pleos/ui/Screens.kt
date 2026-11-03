@@ -117,7 +117,7 @@ fun App(vm: TalkViewModel) {
                         // 주행으로 바뀌면 설정으로 돌아간다 (글이 많은 화면)
                         Extra.Notices -> if (parked) NoticesScreen() else LaunchedEffect(Unit) { extra = Extra.Settings }
                         // 말동무 만들기는 사진·스타일을 고르는 화면이라 정차 중에만 (주행으로 바뀌면 홈으로)
-                        Extra.Buddy -> if (parked) BuddySetupScreen(state, vm) { extra = null } else LaunchedEffect(Unit) { extra = null }
+                        Extra.Buddy -> if (parked) BuddySetupScreen(state, vm, isAdult(profile.birthYear)) { extra = null } else LaunchedEffect(Unit) { extra = null }
                         null -> when (tab) {
                             Tab.Evening -> HomeScreen(
                                 state, parked, vm,

@@ -2,12 +2,17 @@ package com.smalltoktok.pleos.data
 
 import android.content.SharedPreferences
 
-/** 말동무 대화 스타일 (2026-11-02). key는 서버 BUDDY_STYLES와 같다 */
-enum class BuddyStyle(val key: String, val label: String, val description: String) {
+/**
+ * 말동무 대화 스타일 (2026-11-02). key는 서버 BUDDY_STYLES와 같다.
+ * adultOnly: 성인만 고를 수 있다 (태어난 해로 연 나이 19세 이상, 서버도 다시 확인한다)
+ */
+enum class BuddyStyle(val key: String, val label: String, val description: String, val adultOnly: Boolean = false) {
     Chatty("chatty", "수다쟁이 친구", "먼저 이야깃거리를 꺼내요. 짧게 답해도 괜찮아요"),
     Listener("listener", "다정한 리스너", "내 얘기를 잘 들어 주고 공감해 줘요"),
     Playful("playful", "장난꾸러기", "티키타카와 가벼운 농담을 좋아해요"),
     Calm("calm", "차분한 선배", "담백하고 조곤조곤, 서두르지 않아요"),
+    // 2026-11-03 선택: 다정한 썸 분위기 (스킨십·연인 흉내·집착은 서버 프롬프트가 막는다)
+    Flirty("flirty", "설레는 썸 상대", "다정하고 살짝 설레게, 내 하루를 궁금해해요 · 성인만", adultOnly = true),
     ;
 
     companion object {

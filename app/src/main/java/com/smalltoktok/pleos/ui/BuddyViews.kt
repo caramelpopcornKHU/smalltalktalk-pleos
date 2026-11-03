@@ -144,14 +144,18 @@ internal fun BuddyDrivingCard(buddy: BuddyConfig, vm: TalkViewModel, modifier: M
 /**
  * 말동무 만들기·바꾸기 (정차 중에만): 성별 → 사진(인물 풀에서) → 대화 스타일 → 말투 → 저장.
  * 성별을 바꾸면 그 성별 사진만 보인다. 목소리는 고른 사진의 성별을 따른다.
+ * adult: 성인만 고르는 스타일(설레는 썸 상대)을 보여 줄지. 아니면 숨기고 태어난 해 입력을 안내한다.
  */
 @Composable
-internal fun BuddySetupScreen(state: TalkState, vm: TalkViewModel, onDone: () -> Unit) {
+internal fun BuddySetupScreen(state: TalkState, vm: TalkViewModel, adult: Boolean, onDone: () -> Unit) {
     LaunchedEffect(Unit) { vm.loadCharacters() }
     val current = state.buddy
     var gender by rememberSaveable { mutableStateOf(current?.gender ?: "f") }
     var characterId by rememberSaveable { mutableStateOf(current?.characterId) }
-    var style by rememberSaveable { mutableStateOf(current?.style ?: BuddyStyle.Chatty) }
+    var style by rememberSaveable {
+        mutableStateOf(current?.style?.takeIf { adult || !it.adultOnly } ?: BuddyStyle.Chatty)
+    }
+    val styles = BuddyStyle.entries.filter { adult || !it.adultOnly }
     var casual by rememberSaveable { mutableStateOf(current?.casual ?: true) }
     val photos = state.characters.filter { it.gender == gender }
 
@@ -189,10 +193,17 @@ internal fun BuddySetupScreen(state: TalkState, vm: TalkViewModel, onDone: () ->
         item(span = { GridItemSpan(maxLineSpan) }) {
             Column(Modifier.padding(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text("3. 대화 스타일", style = MaterialTheme.typography.titleLarge)
-                BuddyStyle.entries.chunked(2).forEach { pair ->
+                styles.chunked(2).forEach { pair ->
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         pair.forEach { s -> StyleChip(s, s == style, Modifier.weight(1f)) { style = s } }
+                        if (pair.size == 1) Spacer(Modifier.weight(1f))
                     }
+                }
+                if (!adult) {
+                    Text(
+                        "설레는 썸 상대는 성인만 고를 수 있어요. 설정에서 태어난 해를 입력하면 보여요.",
+                        style = MaterialTheme.typography.bodyLarge, color = Palette.muted,
+                    )
                 }
                 Text("4. 말투", style = MaterialTheme.typography.titleLarge)
                 Segmented(listOf(true to "반말", false to "존댓말"), casual) { casual = it }
