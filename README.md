@@ -87,3 +87,10 @@
 ## 오픈소스·저작권 고지
 
 앱 설정 → "오픈소스·저작권 고지"에서 볼 수 있어요. 목록은 [docs/credits.md](docs/credits.md)에 있어요.
+
+## 문의
+
+- 이메일: smalltalktalk.official@gmail.com
+- 인스타그램: [@smalltalktalk.official](https://www.instagram.com/smalltalktalk.official/)
+
+앱 설정 화면 아래에서도 볼 수 있어요.

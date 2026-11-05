@@ -32,8 +32,23 @@ private val NOTICES = listOf(
     Notice("Kotlin, kotlinx.coroutines", "언어와 비동기 처리", "Apache License 2.0", "https://kotlinlang.org"),
     Notice("OkHttp", "서버 통신", "Apache License 2.0", "https://square.github.io/okhttp/"),
     Notice("Coil", "인물 사진 불러오기", "Apache License 2.0", "https://coil-kt.github.io/coil/"),
-    Notice("Pleos SpeechToText, TextToSpeech SDK", "음성 인식·음성 합성", "Pleos Playground 이용약관", "https://document.pleos.ai"),
+    Notice("Pleos SpeechToText, TextToSpeech, NaviHelper SDK", "음성 인식·음성 합성·내비 목적지", "Pleos Playground 이용약관", "https://document.pleos.ai"),
 )
+
+/** 문의처 (2026-11-05). 브랜드 계정만 쓰고 실명은 넣지 않는다. README의 "문의"와 맞춘다 */
+const val CONTACT_EMAIL = "smalltalktalk.official@gmail.com"
+const val CONTACT_INSTAGRAM = "@smalltalktalk.official"
+
+/** 설정·고지 화면 아래의 문의 카드. Pleos에는 메일 앱·브라우저가 없을 수 있어 누르는 링크 없이 글로만 보여 준다 */
+@Composable
+fun ContactCard() = Column(
+    Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Palette.surface).padding(20.dp),
+    verticalArrangement = Arrangement.spacedBy(4.dp),
+) {
+    Text("문의", style = MaterialTheme.typography.titleLarge)
+    Text("이메일 $CONTACT_EMAIL", style = MaterialTheme.typography.bodyLarge)
+    Text("인스타그램 $CONTACT_INSTAGRAM", style = MaterialTheme.typography.bodyLarge)
+}
 
 /**
  * 설정 → 오픈소스·저작권 고지. 글이 많은 화면이라 정차 중에만 연다(설정에서 버튼을 정차 중에만 보인다).
@@ -61,6 +76,7 @@ fun NoticesScreen() {
                     Text("${n.license} · ${n.url}", style = MaterialTheme.typography.bodyLarge, color = Palette.muted)
                 }
             }
+            ContactCard()
         }
     }
 }

@@ -128,6 +128,7 @@ fun NameScreen(
                 OutlinedButton(onClick = onNotices, modifier = Modifier.fillMaxWidth().height(72.dp)) {
                     Text("오픈소스·저작권 고지", style = MaterialTheme.typography.labelLarge)
                 }
+                ContactCard()
             }
         }
     }
