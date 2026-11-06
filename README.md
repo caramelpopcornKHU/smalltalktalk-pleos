@@ -23,12 +23,9 @@
 
 | | |
 |---|---|
-| ![저녁 연습 홈](docs/screenshots/01-home.png)<br>**저녁 연습** 오늘의 상대와 상황 고르기 | ![아쉬운 대화 털어놓기](docs/screenshots/02-reflect-start.png)<br>**아쉬운 대화** 있었던 일을 말로 털어놓기 |
-| ![추천 한마디](docs/screenshots/03-reflect-result.png)<br>**추천 한마디** 그 상대로 다시 연습하기 | ![대화 연습](docs/screenshots/04-talk.png)<br>**대화 연습** AI 상대와 목소리로 주고받기 |
-| ![코칭](docs/screenshots/05-coaching.png)<br>**코칭** 한마디 더 얹어 볼 순간 | ![아침 카드](docs/screenshots/06-morning.png)<br>**아침 카드** 출근길 입 예열 브리핑 |
-| ![나의 대화 습관](docs/screenshots/07-habits.png)<br>**나의 대화 습관** 최근 7일 리포트 | ![AI 판사](docs/screenshots/08-judge.png)<br>**AI 판사** 차 안 논쟁 판결 |
-| ![출근길](docs/screenshots/09-commute-office.png)<br>**출근길** 목적지가 회사면 오늘의 소재 듣기 | ![퇴근길](docs/screenshots/10-commute-home.png)<br>**퇴근길** 목적지가 집이면 털어놓기 추천 |
-| ![말동무 만들기](docs/screenshots/11-buddy-setup.png)<br>**말동무 만들기** 사진·대화 스타일·말투 고르기 | ![주행 중 홈](docs/screenshots/12-driving-buddy.png)<br>**주행 중 홈** 연습 상대와 말동무, 큰 카드 두 장 |
+| ![저녁 연습 홈](docs/screenshots/2611/01-home.png)<br>**저녁 연습** 오늘의 상대와 상황 고르기 | ![대화 연습](docs/screenshots/2611/02-practice.png)<br>**대화 연습** AI 상대와 목소리로 주고받기 |
+| ![털어놓기](docs/screenshots/2611/03-reflect.png)<br>**아쉬운 대화** 있었던 일을 말로 털어놓고 그 상대와 다시 연습 | ![코칭](docs/screenshots/2611/04-coaching.png)<br>**코칭** 한마디 더 얹어 볼 순간 |
+| ![아침 카드](docs/screenshots/2611/05-morning.png)<br>**아침 카드** 출근길 입 예열 브리핑 | ![AI 판사](docs/screenshots/2611/06-judge.png)<br>**AI 판사** 차 안 논쟁 판결 |
 
 ## 주요 기능
 
