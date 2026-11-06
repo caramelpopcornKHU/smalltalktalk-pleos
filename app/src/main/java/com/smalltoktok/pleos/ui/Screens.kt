@@ -496,6 +496,11 @@ private fun ScenarioCard(s: Scenario, rally: Int?, casual: Boolean, vm: TalkView
                     Spacer(Modifier.width(8.dp))
                     SpeechTag()
                 }
+                // 내 이야기로 만든 연습은 그때 그 상대의 난이도로 한다 (홈의 난이도 스위치를 따르지 않으니 표시)
+                if (s.mine && s.partnerDifficulty != null) {
+                    Spacer(Modifier.width(8.dp))
+                    SpeechTag("난이도 ${vm.difficultyFor(s).label}")
+                }
             }
             // 해본 상황은 최고 랠리 수를 보여준다
             rally?.let { Text("최고 랠리 ${it}번", style = MaterialTheme.typography.labelLarge, color = Palette.onAccent) }

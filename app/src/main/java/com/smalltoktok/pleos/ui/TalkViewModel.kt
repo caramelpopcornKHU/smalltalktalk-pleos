@@ -141,6 +141,13 @@ class TalkViewModel(app: Application) : AndroidViewModel(app) {
         if (announce) viewModelScope.launch { voice.speak("난이도 ${d.label}으로 할게요.") }
     }
 
+    /**
+     * 이 상황의 상대 난이도. 내 이야기로 만든 연습은 털어놓은 그때 그 상대처럼(모델이 이야기에서 읽은 값),
+     * 공유 상황과 이전에 만든 연습은 홈에서 고른 난이도 (2026-11-06)
+     */
+    fun difficultyFor(s: Scenario): Difficulty =
+        s.partnerDifficulty?.takeIf { s.mine }?.let { Difficulty.of(it) } ?: _state.value.difficulty
+
     private fun markSpeechHintSeen() {
         if (_state.value.speechHintSeen) return
         prefs.edit().putBoolean("speech_hint_seen", true).apply()
@@ -266,15 +273,16 @@ class TalkViewModel(app: Application) : AndroidViewModel(app) {
         conversationId = null
         markSpeechHintSeen()
         val casual = scenario.casual(_state.value.casual)
+        val difficulty = difficultyFor(scenario)
         _state.update {
             it.copy(
                 scenario = scenario, phase = Phase.Starting, messages = emptyList(), partnerTurns = 0,
-                feedback = null, error = null, talkCasual = casual, talkDifficulty = it.difficulty, talkBuddy = false,
+                feedback = null, error = null, talkCasual = casual, talkDifficulty = difficulty, talkBuddy = false,
             )
         }
         loop = viewModelScope.launch {
             try {
-                val started = api.start(scenario.id, casual = !scenario.mine && _state.value.casual, difficulty = _state.value.difficulty.key)
+                val started = api.start(scenario.id, casual = !scenario.mine && _state.value.casual, difficulty = difficulty.key)
                 conversationId = started.conversationId
                 _state.update { it.copy(maxPartnerTurns = started.maxPartnerTurns) }
                 var say = started.firstSay

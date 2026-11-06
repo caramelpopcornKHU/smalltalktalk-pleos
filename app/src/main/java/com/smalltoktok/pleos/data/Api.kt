@@ -32,6 +32,11 @@ data class Scenario(
     val casualSay: String? = null,
     /** 상황의 원래 말투 (formal / casual). 아쉬운 대화로 만든 연습은 모델이 관계를 보고 정했다 */
     val speechLevel: String = "formal",
+    /**
+     * 털어놓은 이야기 속 상대에 맞는 난이도 easy / normal / hard (2026-11-06). 내 이야기로 만든 연습만, 이전 것은 null.
+     * "말수 없는 상대"라고 털어놨는데 난이도 하로 대화를 잘 이끄는 상대가 나와 연습 의미가 없었다는 피드백.
+     */
+    val partnerDifficulty: String? = null,
 ) {
     val mine get() = kind != "shared"
 
@@ -209,6 +214,7 @@ class Api(context: Context) {
             distance = o.optStringOrNull("distance"),
             casualSay = o.optStringOrNull("casual_say"),
             speechLevel = o.optString("speech_level", "formal"),
+            partnerDifficulty = o.optStringOrNull("partner_difficulty"),
         )
     }
 
@@ -553,7 +559,7 @@ class Api(context: Context) {
 
     private companion object {
         val JSON = "application/json".toMediaType()
-        const val SCENARIO_COLUMNS = "id,kind,distance,title,who,who_short,place,character_id,casual_say,speech_level,scenario_turn(position,say)"
+        const val SCENARIO_COLUMNS = "id,kind,distance,title,who,who_short,place,character_id,casual_say,speech_level,partner_difficulty,scenario_turn(position,say)"
         // 폰 앱 MORNING_CATEGORIES 순서 (packages/shared/src/morning.ts)
         val MORNING_ORDER = listOf("weather", "fun-fact", "season", "food", "outing", "culture", "fuel", "movie-drama", "kpop", "issue", "sports", "ott")
     }
