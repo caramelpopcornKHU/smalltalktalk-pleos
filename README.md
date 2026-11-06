@@ -44,12 +44,12 @@
 ## 실행 방법
 
 1. Pleos Connect 에뮬레이터를 켜요.
-2. 아래 두 APK 중 하나를 설치해요. 두 파일은 내용이 같은 서명된 release 빌드(v1.2)예요(GitHub Release는 첨부 파일 이름의 한글을 지워서 영문 이름으로 올렸어요).
+2. 아래 두 APK 중 하나를 설치해요. 두 파일은 내용이 같은 서명된 release 빌드(v1.0.0)예요(GitHub Release는 첨부 파일 이름의 한글을 지워서 영문 이름으로 올렸어요).
 
    | 위치 | 파일 |
    |---|---|
    | 저장소 `apk/` 폴더 | `apk/정형민_smalltalktalk_release.apk` |
-   | GitHub Release [v1.2.0](https://github.com/caramelpopcornKHU/smalltalktalk-pleos/releases/tag/v1.2.0) | `ChungHyungmin_smalltalktalk_release.apk` |
+   | GitHub Release [v1.0.0](https://github.com/caramelpopcornKHU/smalltalktalk-pleos/releases/tag/v1.0.0) | `ChungHyungmin_smalltalktalk_release.apk` |
 
    ```bash
    adb install apk/정형민_smalltalktalk_release.apk
@@ -71,8 +71,7 @@
 ## APK 위치
 
 - 저장소: [`apk/정형민_smalltalktalk_release.apk`](apk/)
-- GitHub Release: https://github.com/caramelpopcornKHU/smalltalktalk-pleos/releases/tag/v1.2.0 (`ChungHyungmin_smalltalktalk_release.apk`, 같은 파일)
-- 이전 버전: [v1.1.0](https://github.com/caramelpopcornKHU/smalltalktalk-pleos/releases/tag/v1.1.0)(말동무 프로필·지식 카드 개편 전), [v1.0.0](https://github.com/caramelpopcornKHU/smalltalktalk-pleos/releases/tag/v1.0.0)(내비 연동·말동무 전)
+- GitHub Release: https://github.com/caramelpopcornKHU/smalltalktalk-pleos/releases/tag/v1.0.0 (`ChungHyungmin_smalltalktalk_release.apk`, 같은 파일)
 
 ## 사용 기술
 
