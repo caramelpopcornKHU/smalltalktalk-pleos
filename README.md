@@ -69,6 +69,7 @@
 | 항목 | 내용 |
 |---|---|
 | 에뮬레이터 | Pleos Connect Emulator v2.1.0 (Android API 34), Cold boot, RAM 4GB |
+| 화면 규격 | 2560 × 1440 (가로), 160dpi |
 | 앱 | minSdk 28, Kotlin, Jetpack Compose |
 | 권한 | 마이크(음성 인식), 인터넷, 내비게이션 경로 정보(`NAVI_ROUTE`) |
 | 로그인 | 필요 없어요. 처음 켤 때 익명 계정이 자동으로 만들어지고, 모든 기능을 바로 쓸 수 있어요. |
